@@ -113,11 +113,9 @@ int main(int argc, char *argv[]){
 
 		// Show the returned message
 		printf("%s\n",playerName);
-
+		
 		// Close socket
 		close(socketfd);
 
 	return 0;
-
-		
 }

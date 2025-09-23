@@ -109,16 +109,21 @@ int main(int argc, char *argv[]){
 
 	int socketfd;						/** Socket descriptor */
 	char message1[MAX_MSG_LENGTH];	
+	char message2[MAX_MSG_LENGTH];	
 	int message1Length;
+	int message2Length;
 	struct sockaddr_in serverAddress;	/** Server address structure */
 	unsigned int port;					/** Listening port */
 	struct sockaddr_in player1Address;	/** Client address structure for player 1 */
 	struct sockaddr_in player2Address;	/** Client address structure for player 2 */
 	int socketPlayer1;					/** Socket descriptor for player 1 */
 	int socketPlayer2;					/** Socket descriptor for player 2 */
-	unsigned int client1Length;			/** Length of client structure */
+	unsigned int client1Length;			/** Length of client1 structure */
+	unsigned int client2Length;			/** Length of client1 structure */
 	tThreadArgs *threadArgs; 			/** Thread parameters */
 	pthread_t threadID;					/** Thread ID */
+	tSession session;
+	tDeck gameDeck;
 
 
 	// Seed
@@ -175,19 +180,55 @@ int main(int argc, char *argv[]){
 		showError("ERROR while reading from socket");
 
 	// Show message
-	printf("Message: %s\n", message1);
+	printf("Player1: %s\n", message1);
 
 	// Get the message length
 	memset (message1, 0, MAX_MSG_LENGTH);
-	strcpy (message1, "Message received!");
+	strcpy (message1, "Player 1 confirmed!!");
 	message1Length = send(socketPlayer1, message1, strlen(message1), 0);
 
 	// Check bytes sent
 	if (message1Length < 0)
 		showError("ERROR while writing to socket");
+	
+	// Get length of client structure
+	client2Length = sizeof(player2Address);
+
+	// Accept!
+	socketPlayer2 = accept(socketfd, (struct sockaddr *) &player2Address, &client2Length);
+	
+	// Check accept result
+	if (socketPlayer2 < 0)
+		showError("ERROR while accepting");	  
+
+	// Init and read message
+	memset(message2, 0, MAX_MSG_LENGTH);
+	message2Length = recv(socketPlayer2, message2, MAX_MSG_LENGTH-1, 0);
+
+	// Check read bytes
+	if (message2Length < 0)
+		showError("ERROR while reading from socket");
+
+	// Show message
+	printf("Player2: %s\n", message2);
+
+	// Get the message length
+	memset (message2, 0, MAX_MSG_LENGTH);
+	strcpy (message2, "Game starts!!!");
+	message2Length = send(socketPlayer2, message2, strlen(message2), 0);
+
+	// Check bytes sent
+	if (message2Length < 0)
+		showError("ERROR while writing to socket");
+
+	printf("Los 2 jugadores han sido confirmados, iniciando partida... \n");
+
+	//initSession(&session);
+	//initDeck(&gameDeck);
+	//printSession(&session);
 
 	// Close sockets
 	close(socketPlayer1);
+	close(socketPlayer2);
 	close(socketfd);
-	
 }
