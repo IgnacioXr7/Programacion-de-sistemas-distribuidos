@@ -1,6 +1,8 @@
 #include "serverGame.h"
 #include <pthread.h>
 
+#define MAX_MSG_LENGTH 128
+
 tPlayer getNextPlayer (tPlayer currentPlayer){
 
 	tPlayer next;
@@ -106,28 +108,86 @@ unsigned int getRandomCard (tDeck* deck){
 int main(int argc, char *argv[]){
 
 	int socketfd;						/** Socket descriptor */
+	char message1[MAX_MSG_LENGTH];	
+	int message1Length;
 	struct sockaddr_in serverAddress;	/** Server address structure */
 	unsigned int port;					/** Listening port */
 	struct sockaddr_in player1Address;	/** Client address structure for player 1 */
 	struct sockaddr_in player2Address;	/** Client address structure for player 2 */
 	int socketPlayer1;					/** Socket descriptor for player 1 */
 	int socketPlayer2;					/** Socket descriptor for player 2 */
-	unsigned int clientLength;			/** Length of client structure */
+	unsigned int client1Length;			/** Length of client structure */
 	tThreadArgs *threadArgs; 			/** Thread parameters */
 	pthread_t threadID;					/** Thread ID */
 
 
-		// Seed
-		srand(time(0));
+	// Seed
+	srand(time(0));
 
-		// Check arguments
-		if (argc != 2) {
-			fprintf(stderr,"ERROR wrong number of arguments\n");
-			fprintf(stderr,"Usage:\n$>%s port\n", argv[0]);
-			exit(1);
-		}
+	// Check arguments
+	if (argc != 2) {
+		fprintf(stderr,"ERROR wrong number of arguments\n");
+		fprintf(stderr,"Usage:\n$>%s port\n", argv[0]);
+		exit(1);
+	}
 
+	// Create the socket
+	socketfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	// Check
+	if (socketfd < 0)
+	showError("ERROR while opening socket");
+
+	// Init server structure
+	memset(&serverAddress, 0, sizeof(serverAddress));
+
+	// Get listening port
+	port = atoi(argv[1]);
+
+	// Fill server structure
+	serverAddress.sin_family = AF_INET;
+	serverAddress.sin_addr.s_addr = htonl(INADDR_ANY);
+	serverAddress.sin_port = htons(port);
+
+	// Bind
+	if (bind(socketfd, (struct sockaddr *) &serverAddress, sizeof(serverAddress)) < 0)
+		showError("ERROR while binding");
+
+	// Listen
+	listen(socketfd, 10);
+
+	// Get length of client structure
+	client1Length = sizeof(player1Address);
+
+	// Accept!
+	socketPlayer1 = accept(socketfd, (struct sockaddr *) &player1Address, &client1Length);
 	
-	
+	// Check accept result
+	if (socketPlayer1 < 0)
+		showError("ERROR while accepting");	  
+
+	// Init and read message
+	memset(message1, 0, MAX_MSG_LENGTH);
+	message1Length = recv(socketPlayer1, message1, MAX_MSG_LENGTH-1, 0);
+
+	// Check read bytes
+	if (message1Length < 0)
+		showError("ERROR while reading from socket");
+
+	// Show message
+	printf("Message: %s\n", message1);
+
+	// Get the message length
+	memset (message1, 0, MAX_MSG_LENGTH);
+	strcpy (message1, "Message received!");
+	message1Length = send(socketPlayer1, message1, strlen(message1), 0);
+
+	// Check bytes sent
+	if (message1Length < 0)
+		showError("ERROR while writing to socket");
+
+	// Close sockets
+	close(socketPlayer1);
+	close(socketfd);
 	
 }
