@@ -122,7 +122,7 @@ int main(int argc, char *argv[]){
 	unsigned int client2Length;			/** Length of client1 structure */
 	tThreadArgs *threadArgs; 			/** Thread parameters */
 	pthread_t threadID;					/** Thread ID */
-	tSession session;
+	tSession session;  					/** session -> game */
 	tDeck gameDeck;
 
 
@@ -223,9 +223,21 @@ int main(int argc, char *argv[]){
 
 	printf("Los 2 jugadores han sido confirmados, iniciando partida... \n");
 
-	//initSession(&session);
-	//initDeck(&gameDeck);
-	//printSession(&session);
+	//Iniciate a new session aka a new game
+	initSession(&session);
+	printSession(&session); //Debbug
+
+	//Game loop
+	int gameOver = 0;
+	while(!gameOver){
+		//while the game isn't over
+
+		
+		//at the end of the loop check if any player has 0 chips left
+		if(session.player1Stack == 0 || session.player2Stack == 0){
+			gameOver = 1; //if any player has no chips left, the game is over
+		}
+	}
 
 	// Close sockets
 	close(socketPlayer1);
