@@ -50,6 +50,15 @@ unsigned int readOption (){
 	return bet;
 }
 
+//our auxiliary function 
+void sendNumber (int socket, unsigned int number){
+	//sends an unsigned int to the given socket
+	memset(&number, 0, sizeof(unsigned int));
+	int sent = send(socket, &number, sizeof(unsigned int), 0);
+	if (sent < 0)
+		showError("ERROR while writing to socket");
+}
+
 int main(int argc, char *argv[]){
 
 	int socketfd;						/** Socket descriptor */
@@ -60,6 +69,9 @@ int main(int argc, char *argv[]){
 	tString playerName;					/** Name of the player */
 	int nameLength;
 	unsigned int code;					/** Code */
+	unsigned int stack;					/** Stack */
+	unsigned int bet;					/** Bet */
+	tDeck playerDeck;					/** Player's deck */
 
 		// Check arguments!
 		if (argc != 3){
@@ -92,27 +104,59 @@ int main(int argc, char *argv[]){
 			showError("ERROR while establishing connection");
 
 		// Init and read the message
-		printf("Enter a message: ");
+		printf("Enter message: ");
 		memset(playerName, 0, MAX_MSG_LENGTH);
 		fgets(playerName, MAX_MSG_LENGTH-1, stdin);
+		playerName[strlen(playerName)-1] = '\0'; // Remove newline character
 
 		// Send message to the server side
 		nameLength = send(socketfd, playerName, strlen(playerName), 0);
 
 		// Check the number of bytes sent
 		if (nameLength < 0)
-			showError("ERROR while writing to the socket");
+			showError("ERROR while writing the name");
 
 		// Init for reading incoming message
-		memset(playerName, 0, MAX_MSG_LENGTH);
-		nameLength = recv(socketfd, playerName, MAX_MSG_LENGTH-1, 0);
+		//memset(playerName, 0, MAX_MSG_LENGTH);
+		//nameLength = recv(socketfd, playerName, MAX_MSG_LENGTH-1, 0);
 
 		// Check bytes read
-		if (nameLength < 0)
-			showError("ERROR while reading from the socket");
+		//if (nameLength < 0)
+			//showError("ERROR while reading from the socket");
 
 		// Show the returned message
-		printf("%s\n",playerName);
+		//printf("%s\n",playerName);
+
+		//in the beginning, the game is not finished
+		endOfGame = FALSE;
+		//main loop of the game
+		while(!endOfGame){
+			//receive code from server
+			menmset(&code, 0, sizeof(unsigned int));
+			if(recv(socketfd, &code, sizeof(unsigned int), 0) < 0)
+				showError("ERROR while reading from the socket");
+
+			//if we are debbuging, show the code received
+			if(DEBUG_CLIENT)
+				showCode(code);
+
+			//switch for the different types of codes
+			switch(code){
+				case TURN_BET:
+					//recive my stack
+					memset(&stack, 0, sizeof(unsigned int));
+					if(recv(socketfd, &stack, sizeof(unsigned int), 0) < 0)
+						showError("ERROR while reading from the socket");
+					
+					printf("Your stack is: %u\n", stack);
+					//place my bet 
+					bet = readBet();
+
+					//send to server
+					sendNumber(socketfd, bet);
+					break;
+			}
+		}
 		
 		// Close socket
 		close(socketfd);
