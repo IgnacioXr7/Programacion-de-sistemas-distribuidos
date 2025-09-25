@@ -103,6 +103,13 @@ unsigned int getRandomCard (tDeck* deck){
 	return card;
 }
 
+//our auxiliary function 
+void sendNumber (int socket, unsigned int number){
+	//sends an unsigned int to the given socket
+	int sent = send(socket, &number, sizeof(unsigned int), 0);
+	if (sent < 0)
+		showError("ERROR while writing to socket");
+}
 
 
 int main(int argc, char *argv[]){
@@ -231,6 +238,10 @@ int main(int argc, char *argv[]){
 	int gameOver = 0;
 	while(!gameOver){
 		//while the game isn't over
+
+		//1. server sends to player 1 code TURN_BET and stack
+		sendNumber(socketPlayer1, TURN_BET);
+		sendNumber(socketPlayer1, session.player1Stack);
 
 		
 		//at the end of the loop check if any player has 0 chips left
