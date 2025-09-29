@@ -111,6 +111,26 @@ void sendNumber (int socket, unsigned int number){
 		showError("ERROR while writing to socket");
 }
 
+void receiveNumber (int socket, unsigned int *number){
+	//receives an unsigned int from the given socket
+	int received = recv(socket, number, sizeof(unsigned int), 0);
+	if (received < 0)
+		showError("ERROR while reading from socket");
+}
+
+void sendDeck (int socket, tDeck *deck){
+	//sends a deck of a player to their socket
+	int sent = send(socket, deck, sizeof(tDeck), 0);
+	if (sent < 0)
+		showError("ERROR while writing to socket");
+}
+
+void receiveDeck (int socket, tDeck *deck){
+	//receives the deck of a player from their socket
+	int received = recv(socket, deck, sizeof(tDeck), 0);
+	if (received < 0)
+		showError("ERROR while reading from socket");
+}
 
 int main(int argc, char *argv[]){
 
@@ -131,6 +151,7 @@ int main(int argc, char *argv[]){
 	pthread_t threadID;					/** Thread ID */
 	tSession session;  					/** session -> game */
 	tDeck gameDeck;
+	unsigned int card;
 
 
 	// Seed
@@ -149,6 +170,8 @@ int main(int argc, char *argv[]){
 	// Check
 	if (socketfd < 0)
 	showError("ERROR while opening socket");
+
+	printf("WELCOME to the BlackJack server!!\n");
 
 	// Init server structure
 	memset(&serverAddress, 0, sizeof(serverAddress));
@@ -176,7 +199,8 @@ int main(int argc, char *argv[]){
 	
 	// Check accept result
 	if (socketPlayer1 < 0)
-		showError("ERROR while accepting");	  
+		showError("ERROR while accepting");	 
+		
 
 	// Init and read message
 	memset(message1, 0, MAX_MSG_LENGTH);
@@ -186,7 +210,8 @@ int main(int argc, char *argv[]){
 	if (message1Length < 0)
 		showError("ERROR while reading from socket");
 
-	// Show message
+	// Same name of player1 and show message
+	strcpy(session.player1Name, message1);
 	printf("Player1: %s\n", message1);
 
 	// Get the message length
@@ -216,13 +241,9 @@ int main(int argc, char *argv[]){
 	if (message2Length < 0)
 		showError("ERROR while reading from socket");
 
-	// Show message
+	// Save name of player2 and show message
+	strcpy(session.player2Name, message2);
 	printf("Player2: %s\n", message2);
-
-	// Get the message length
-	memset (message2, 0, MAX_MSG_LENGTH);
-	strcpy (message2, "Game starts!!!");
-	message2Length = send(socketPlayer2, message2, strlen(message2), 0);
 
 	// Check bytes sent
 	if (message2Length < 0)
@@ -243,11 +264,46 @@ int main(int argc, char *argv[]){
 		sendNumber(socketPlayer1, TURN_BET);
 		sendNumber(socketPlayer1, session.player1Stack);
 
-		
+		//2. Client 1 has places a bet, check to see if its valid 
+		receiveNumber(socketPlayer1, &session.player1Bet);
+		while(session.player1Bet > session.player1Stack || 
+		session.player1Bet > MAX_BET ||
+		session.player1Bet < 1){
+			//if the bet is higher than the stack, ask for a new bet
+			printf("Player 1 has placed an invalid bet of %u, asking for a new one\n", session.player1Bet);
+			sendNumber(socketPlayer1, TURN_BET);
+			sendNumber(socketPlayer1, session.player1Stack);
+			receiveNumber(socketPlayer1, &session.player1Bet);
+		}
+		sendNumber(socketPlayer1, TURN_BET_OK); //send confirmation
+		printf("Player 1 has placed a bet of %u\n", session.player1Bet);
+
+		//3. server sends to player 2 code TURN_BET and stack
+		sendNumber(socketPlayer2, TURN_BET);
+		sendNumber(socketPlayer2, session.player2Stack);
+
+		//4. Client 2 has places a bet, check to see if its valid
+		receiveNumber(socketPlayer2, &session.player2Bet);
+		while(session.player2Bet > session.player2Stack ||
+		session.player2Bet > MAX_BET ||
+		session.player2Bet < 1){
+			//if the bet is higher than the stack, ask for a new bet
+			printf("Player 2 has placed an invalid bet of %u, asking for a new one\n", session.player2Bet);
+			sendNumber(socketPlayer2, TURN_BET);
+			sendNumber(socketPlayer2, session.player2Stack);
+			receiveNumber(socketPlayer2, &session.player2Bet);
+		}
+		sendNumber(socketPlayer2, TURN_BET_OK); //send confirmation
+		printf("Player 2 has placed a bet of %u\n", session.player2Bet);
+
 		//at the end of the loop check if any player has 0 chips left
+		/*
 		if(session.player1Stack == 0 || session.player2Stack == 0){
 			gameOver = 1; //if any player has no chips left, the game is over
 		}
+		*/
+		gameOver = 1; //for testing purposes, end the game after one round
+		printSession(&session); //Debbug
 	}
 
 	// Close sockets

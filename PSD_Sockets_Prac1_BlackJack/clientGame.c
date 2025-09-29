@@ -53,7 +53,7 @@ unsigned int readOption (){
 //our auxiliary function 
 void sendNumber (int socket, unsigned int number){
 	//sends an unsigned int to the given socket
-	memset(&number, 0, sizeof(unsigned int));
+	//memset(&number, 0, sizeof(unsigned int));
 	int sent = send(socket, &number, sizeof(unsigned int), 0);
 	if (sent < 0)
 		showError("ERROR while writing to socket");
@@ -132,7 +132,7 @@ int main(int argc, char *argv[]){
 		//main loop of the game
 		while(!endOfGame){
 			//receive code from server
-			menmset(&code, 0, sizeof(unsigned int));
+			memset(&code, 0, sizeof(unsigned int));
 			if(recv(socketfd, &code, sizeof(unsigned int), 0) < 0)
 				showError("ERROR while reading from the socket");
 
