@@ -53,7 +53,7 @@ unsigned int readOption (){
 //our auxiliary function 
 void sendNumber (int socket, unsigned int number){
 	//sends an unsigned int to the given socket
-	memset(&number, 0, sizeof(unsigned int));
+	//memset(&number, 0, sizeof(unsigned int));
 	int sent = send(socket, &number, sizeof(unsigned int), 0);
 	if (sent < 0)
 		showError("ERROR while writing to socket");
@@ -115,14 +115,18 @@ int main(int argc, char *argv[]){
 		// Check the number of bytes sent
 		if (nameLength < 0)
 			showError("ERROR while writing the name");
+
 		// Init for reading incoming message
 		//memset(playerName, 0, MAX_MSG_LENGTH);
 		//nameLength = recv(socketfd, playerName, MAX_MSG_LENGTH-1, 0);
+
 		// Check bytes read
 		//if (nameLength < 0)
 			//showError("ERROR while reading from the socket");
+
 		// Show the returned message
 		//printf("%s\n",playerName);
+
 		//in the beginning, the game is not finished
 		endOfGame = FALSE;
 		//main loop of the game
@@ -151,19 +155,9 @@ int main(int argc, char *argv[]){
 					//send to server
 					sendNumber(socketfd, bet);
 					break;
-				case TURN_BET_OK:
-					//Player action 
-					bet = readOption();
-					//send to server
-					sendNumber(socketfd, bet);
-					break;
-				case TURN_PLAY:
-					break;
-				case TURN_PLAY_WAIT:
-					break;
-				
 			}
 		}
+		
 		// Close socket
 		close(socketfd);
 
