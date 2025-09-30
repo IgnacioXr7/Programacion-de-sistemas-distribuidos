@@ -115,11 +115,9 @@ int main(int argc, char *argv[]){
 		// Check the number of bytes sent
 		if (nameLength < 0)
 			showError("ERROR while writing the name");
-
 		// Init for reading incoming message
 		//memset(playerName, 0, MAX_MSG_LENGTH);
 		//nameLength = recv(socketfd, playerName, MAX_MSG_LENGTH-1, 0);
-
 		// Check bytes read
 		//if (nameLength < 0)
 			//showError("ERROR while reading from the socket");
@@ -156,7 +154,6 @@ int main(int argc, char *argv[]){
 					sendNumber(socketfd, bet);
 					break;
 			}
-		}
 		
 		// Close socket
 		close(socketfd);
