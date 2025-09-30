@@ -152,17 +152,29 @@ void betNumberLogic (char *playerName, int socket, unsigned int playerStack, uns
 		printf("Player %s has placed a bet of %u\n", playerName, playerBet);
 }
 
-void playTurnLogic (int socketTurnPlayer, int socketWaitPlayer, tDeck *gameDeck) {
+void playTurnLogic (int socketTurnPlayer, int socketWaitPlayer, int codeCurrentPlayer, int codeWaitPlayer, tDeck *gameDeck) {
 		//Player that has the turn 
-		sendNumber(socketTurnPlayer, TURN_PLAY);
+		sendNumber(socketTurnPlayer, codeCurrentPlayer);
 		unsigned int totalPoints = calculatePoints(gameDeck);
 		sendNumber(socketTurnPlayer, totalPoints);
 		sendDeck(socketTurnPlayer, gameDeck);
 		//Player that has to wait
-		sendNumber(socketWaitPlayer, TURN_PLAY_WAIT);
+		sendNumber(socketWaitPlayer, codeWaitPlayer);
 		sendNumber(socketWaitPlayer, totalPoints);
 		sendDeck(socketWaitPlayer, gameDeck);
 }
+
+void giveCardToPlayer (int card, tPlayer current_player, tSession session){
+	if(current_player == player1){
+		session.player1Deck.cards[session.player1Deck.numCards] = card;
+		session.player1Deck.numCards++;
+	}
+	else{
+		session.player2Deck.cards[session.player2Deck.numCards] = card;
+		session.player2Deck.numCards++;
+	}
+}
+
 
 
 int main(int argc, char *argv[]){
@@ -186,6 +198,7 @@ int main(int argc, char *argv[]){
 	tDeck gameDeck;
 	unsigned int card;
 	unsigned int code;
+	tPlayer current_player;
 
 
 	// Seed
@@ -282,7 +295,7 @@ int main(int argc, char *argv[]){
 	if (message2Length < 0)
 		showError("ERROR while writing to socket");
 
-	printf("Los 2 jugadores han sido confirmados, iniciando partida... \n");
+	printf("The 2 players have been confirmed, let's play... \n");
 
 	//Iniciate a new session aka a new game
 	initSession(&session);
@@ -294,9 +307,10 @@ int main(int argc, char *argv[]){
 	while(!gameOver){
 		//while the game isn't over
 		if(turnBeginPlayer1) {
+			current_player = player1;
 			betNumberLogic(message1, socketPlayer1, session.player1Stack, session.player1Bet);
 			betNumberLogic(message2, socketPlayer2, session.player2Stack, session.player2Bet);
-			playTurnLogic(socketPlayer1, socketPlayer2, &session.player1Deck);
+			playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY, TURN_PLAY_WAIT, &session.player1Deck);
 			memset(&code, 0, sizeof(unsigned int));
 			if(recv(socketPlayer1, &code, sizeof(unsigned int), 0) < 0)
 				showError("ERROR while reading from the socket");
@@ -304,26 +318,64 @@ int main(int argc, char *argv[]){
 			if(SERVER_DEBUG)
 				showCode(code);
 			switch(code){
-				case TURN_PLAY_STAND:
+				case TURN_PLAY_STAND: 
+					//now player1 wait 
+					playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY_WAIT, TURN_PLAY_RIVAL_DONE, &session.player1Deck);
 
 					break;
 				case TURN_PLAY_HIT:
-				
+					//player whats another card 
+					card = getRandomCard(&gameDeck);
+					giveCardToPlayer(card, current_player, session);
+					if(calculatePoints(&session.player1Deck) > 21){
+						playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY_OUT, TURN_PLAY_WAIT, &session.player1Deck);
+					}
+					else{
+						playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY, TURN_PLAY_WAIT, &session.player1Deck);
+					}
+					break;
+			}
+
+		}
+		else {
+			current_player = player2;
+			betNumberLogic(message2, socketPlayer2, session.player2Stack, session.player2Bet);
+			betNumberLogic(message1, socketPlayer1, session.player1Stack, session.player1Bet);
+			playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY, TURN_PLAY_WAIT, &session.player1Deck);
+			memset(&code, 0, sizeof(unsigned int));
+			if(recv(socketPlayer1, &code, sizeof(unsigned int), 0) < 0)
+				showError("ERROR while reading from the socket");
+			//if we are debbuging, show the code received
+			if(SERVER_DEBUG)
+				showCode(code);
+			switch(code){
+				case TURN_PLAY_STAND: 
+					//now player1 wait 
+					playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY_WAIT, TURN_PLAY_RIVAL_DONE, &session.player1Deck);
+
+					break;
+				case TURN_PLAY_HIT:
+					//player whats another card 
+					//card = getRandomCard(&gameDeck);
+					printf("Antes de robar carta\n");
+					//giveCardToPlayer(card, current_player, session);
+					if(calculatePoints(&session.player2Deck) > 21){
+						playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY_OUT, TURN_PLAY_WAIT, &session.player1Deck);
+					}
+					else{
+						playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY, TURN_PLAY_WAIT, &session.player1Deck);
+					}
 					break;
 			}
 		}
-		else {
-			betNumberLogic(message2, socketPlayer2, session.player2Stack, session.player2Bet);
-			betNumberLogic(message1, socketPlayer1, session.player1Stack, session.player1Bet);
-		}
 		turnBeginPlayer1 = !turnBeginPlayer1;
 		//at the end of the loop check if any player has 0 chips left
-		/*
+	
 		if(session.player1Stack == 0 || session.player2Stack == 0){
 			gameOver = 1; //if any player has no chips left, the game is over
 		}
-		*/
-		gameOver = TRUE; //for testing purposes, end the game after one round
+		
+		//gameOver = TRUE; //for testing purposes, end the game after one round
 		printSession(&session); //Debbug
 	}
 

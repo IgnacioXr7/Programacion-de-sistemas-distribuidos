@@ -53,7 +53,6 @@ unsigned int readOption (){
 //our auxiliary function 
 void sendNumber (int socket, unsigned int number){
 	//sends an unsigned int to the given socket
-	memset(&number, 0, sizeof(unsigned int));
 	int sent = send(socket, &number, sizeof(unsigned int), 0);
 	if (sent < 0)
 		showError("ERROR while writing to socket");
@@ -72,6 +71,7 @@ int main(int argc, char *argv[]){
 	unsigned int stack;					/** Stack */
 	unsigned int bet;					/** Bet */
 	tDeck playerDeck;					/** Player's deck */
+	int wait = FALSE;
 
 		// Check arguments!
 		if (argc != 3){
@@ -152,14 +152,19 @@ int main(int argc, char *argv[]){
 					sendNumber(socketfd, bet);
 					break;
 				case TURN_BET_OK:
-					//Player action 
-					bet = readOption();
-					//send to server
-					sendNumber(socketfd, bet);
+					printf("Apuesta valida !!!\n");
 					break;
 				case TURN_PLAY:
+						//Player action 
+						bet = readOption();
+						//send to server
+						sendNumber(socketfd, bet);
 					break;
 				case TURN_PLAY_WAIT:
+					wait = TRUE;
+					break;
+				case TURN_PLAY_OUT:
+					printf("Limit of points exceeded, you are done\n");
 					break;
 				
 			}
