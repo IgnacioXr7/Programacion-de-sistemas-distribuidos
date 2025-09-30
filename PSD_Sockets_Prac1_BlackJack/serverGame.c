@@ -132,6 +132,39 @@ void receiveDeck (int socket, tDeck *deck){
 		showError("ERROR while reading from socket");
 }
 
+void betNumberLogic (char *playerName, int socket, unsigned int playerStack, unsigned int playerBet) {
+	//1. server sends to player 1 code TURN_BET and stack
+		sendNumber(socket, TURN_BET);
+		sendNumber(socket, playerStack);
+
+		//2. Client 1 has places a bet, check to see if its valid 
+		receiveNumber(socket, &playerBet);
+		while(playerBet > playerStack || 
+		playerBet > MAX_BET ||
+		playerBet < 1){
+			//if the bet is higher than the stack, ask for a new bet
+			printf("Player %s has placed an invalid bet of %u, asking for a new one\n",playerName, playerBet);
+			sendNumber(socket, TURN_BET);
+			sendNumber(socket, playerStack);
+			receiveNumber(socket, &playerBet);
+		}
+		sendNumber(socket, TURN_BET_OK); //send confirmation
+		printf("Player %s has placed a bet of %u\n", playerName, playerBet);
+}
+
+void playTurnLogic (int socketTurnPlayer, int socketWaitPlayer, tDeck *gameDeck) {
+		//Player that has the turn 
+		sendNumber(socketTurnPlayer, TURN_PLAY);
+		unsigned int totalPoints = calculatePoints(gameDeck);
+		sendNumber(socketTurnPlayer, totalPoints);
+		sendDeck(socketTurnPlayer, gameDeck);
+		//Player that has to wait
+		sendNumber(socketWaitPlayer, TURN_PLAY_WAIT);
+		sendNumber(socketWaitPlayer, totalPoints);
+		sendDeck(socketWaitPlayer, gameDeck);
+}
+
+
 int main(int argc, char *argv[]){
 
 	int socketfd;						/** Socket descriptor */
@@ -152,6 +185,7 @@ int main(int argc, char *argv[]){
 	tSession session;  					/** session -> game */
 	tDeck gameDeck;
 	unsigned int card;
+	unsigned int code;
 
 
 	// Seed
@@ -200,7 +234,6 @@ int main(int argc, char *argv[]){
 	// Check accept result
 	if (socketPlayer1 < 0)
 		showError("ERROR while accepting");	 
-		
 
 	// Init and read message
 	memset(message1, 0, MAX_MSG_LENGTH);
@@ -216,7 +249,7 @@ int main(int argc, char *argv[]){
 
 	// Get the message length
 	memset (message1, 0, MAX_MSG_LENGTH);
-	strcpy (message1, "Player 1 confirmed!!");
+	strcpy (message1, "Player 1 confirmed!! \n");
 	message1Length = send(socketPlayer1, message1, strlen(message1), 0);
 
 	// Check bytes sent
@@ -256,53 +289,41 @@ int main(int argc, char *argv[]){
 	printSession(&session); //Debbug
 
 	//Game loop
-	int gameOver = 0;
+	int gameOver = FALSE;
+	int turnBeginPlayer1 = TRUE; 
 	while(!gameOver){
 		//while the game isn't over
+		if(turnBeginPlayer1) {
+			betNumberLogic(message1, socketPlayer1, session.player1Stack, session.player1Bet);
+			betNumberLogic(message2, socketPlayer2, session.player2Stack, session.player2Bet);
+			playTurnLogic(socketPlayer1, socketPlayer2, &session.player1Deck);
+			memset(&code, 0, sizeof(unsigned int));
+			if(recv(socketPlayer1, &code, sizeof(unsigned int), 0) < 0)
+				showError("ERROR while reading from the socket");
+			//if we are debbuging, show the code received
+			if(SERVER_DEBUG)
+				showCode(code);
+			switch(code){
+				case TURN_PLAY_STAND:
 
-		//1. server sends to player 1 code TURN_BET and stack
-		sendNumber(socketPlayer1, TURN_BET);
-		sendNumber(socketPlayer1, session.player1Stack);
-
-		//2. Client 1 has places a bet, check to see if its valid 
-		receiveNumber(socketPlayer1, &session.player1Bet);
-		while(session.player1Bet > session.player1Stack || 
-		session.player1Bet > MAX_BET ||
-		session.player1Bet < 1){
-			//if the bet is higher than the stack, ask for a new bet
-			printf("Player 1 has placed an invalid bet of %u, asking for a new one\n", session.player1Bet);
-			sendNumber(socketPlayer1, TURN_BET);
-			sendNumber(socketPlayer1, session.player1Stack);
-			receiveNumber(socketPlayer1, &session.player1Bet);
+					break;
+				case TURN_PLAY_HIT:
+				
+					break;
+			}
 		}
-		sendNumber(socketPlayer1, TURN_BET_OK); //send confirmation
-		printf("Player 1 has placed a bet of %u\n", session.player1Bet);
-
-		//3. server sends to player 2 code TURN_BET and stack
-		sendNumber(socketPlayer2, TURN_BET);
-		sendNumber(socketPlayer2, session.player2Stack);
-
-		//4. Client 2 has places a bet, check to see if its valid
-		receiveNumber(socketPlayer2, &session.player2Bet);
-		while(session.player2Bet > session.player2Stack ||
-		session.player2Bet > MAX_BET ||
-		session.player2Bet < 1){
-			//if the bet is higher than the stack, ask for a new bet
-			printf("Player 2 has placed an invalid bet of %u, asking for a new one\n", session.player2Bet);
-			sendNumber(socketPlayer2, TURN_BET);
-			sendNumber(socketPlayer2, session.player2Stack);
-			receiveNumber(socketPlayer2, &session.player2Bet);
+		else {
+			betNumberLogic(message2, socketPlayer2, session.player2Stack, session.player2Bet);
+			betNumberLogic(message1, socketPlayer1, session.player1Stack, session.player1Bet);
 		}
-		sendNumber(socketPlayer2, TURN_BET_OK); //send confirmation
-		printf("Player 2 has placed a bet of %u\n", session.player2Bet);
-
+		turnBeginPlayer1 = !turnBeginPlayer1;
 		//at the end of the loop check if any player has 0 chips left
 		/*
 		if(session.player1Stack == 0 || session.player2Stack == 0){
 			gameOver = 1; //if any player has no chips left, the game is over
 		}
 		*/
-		gameOver = 1; //for testing purposes, end the game after one round
+		gameOver = TRUE; //for testing purposes, end the game after one round
 		printSession(&session); //Debbug
 	}
 
