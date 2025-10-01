@@ -132,24 +132,24 @@ void receiveDeck (int socket, tDeck *deck){
 		showError("ERROR while reading from socket");
 }
 
-void betNumberLogic (char *playerName, int socket, unsigned int playerStack, unsigned int playerBet) {
+void betNumberLogic (char *playerName, int socket, unsigned int *playerStack, unsigned int *playerBet) {
 	//1. server sends to player 1 code TURN_BET and stack
 		sendNumber(socket, TURN_BET);
-		sendNumber(socket, playerStack);
+		sendNumber(socket, *playerStack);
 
 		//2. Client 1 has places a bet, check to see if its valid 
-		receiveNumber(socket, &playerBet);
-		while(playerBet > playerStack || 
-		playerBet > MAX_BET ||
-		playerBet < 1){
+		receiveNumber(socket, playerBet);
+		while(*playerBet > *playerStack || 
+		*playerBet > MAX_BET ||
+		*playerBet < 1){
 			//if the bet is higher than the stack, ask for a new bet
-			printf("Player %s has placed an invalid bet of %u, asking for a new one\n",playerName, playerBet);
+			printf("Player %s has placed an invalid bet of %ls, asking for a new one\n",playerName, playerBet);
 			sendNumber(socket, TURN_BET);
-			sendNumber(socket, playerStack);
-			receiveNumber(socket, &playerBet);
+			sendNumber(socket, *playerStack);
+			receiveNumber(socket, playerBet);
 		}
 		sendNumber(socket, TURN_BET_OK); //send confirmation
-		printf("Player %s has placed a bet of %u\n", playerName, playerBet);
+		printf("Player %s has placed a bet of %u\n", playerName, *playerBet);
 }
 
 void playTurnLogic (int socketTurnPlayer, int socketWaitPlayer, int codeCurrentPlayer, int codeWaitPlayer, tDeck *gameDeck) {
@@ -175,6 +175,134 @@ void giveCardToPlayer (int card, tPlayer current_player, tSession *session){
 	}
 }
 
+void gameRound(int socketPlayer1, int socketPlayer2, tSession *session){
+	//a round of BackJack 
+	unsigned int card;
+	//give player 1, 2 cards 
+	card = getRandomCard(&session->gameDeck);
+	session->player1Deck.cards[0] = card;
+	card = getRandomCard(&session->gameDeck);
+	session->player1Deck.cards[1] = card;
+	session->player1Deck.numCards = 2;
+	//give player 2, 2 cards
+	card = getRandomCard(&session->gameDeck);
+	session->player2Deck.cards[0] = card;
+	card = getRandomCard(&session->gameDeck);
+	session->player2Deck.cards[1] = card;
+	session->player2Deck.numCards = 2;
+
+	printf("Players have been dealt 2 cards each\n");
+	printSession(session);
+
+	//time to bet 
+	betNumberLogic(session->player1Name, socketPlayer1, &session->player1Stack, &session->player1Bet);
+	betNumberLogic(session->player2Name, socketPlayer2, &session->player2Stack, &session->player2Bet);
+
+	//turn for player 1 
+	int finished = FALSE;
+	while(!finished){
+		playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY, TURN_PLAY_WAIT, &session->player1Deck);
+		unsigned int code;
+		receiveNumber(socketPlayer1, &code);
+		//if we are debbuging, show the code received
+		if(SERVER_DEBUG)
+			showCode(code);
+
+		if(code == TURN_PLAY_HIT){
+			//give new card to player 
+			card = getRandomCard(&(session->gameDeck));
+			giveCardToPlayer(card, player1, session);
+			if(calculatePoints(&session->player1Deck) > 21){
+				playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY_OUT, TURN_PLAY_WAIT, &session->player1Deck);
+				finished = TRUE;
+				printf("Player 1 has exceeded 21 points and is out\n");
+			}
+			//if not, we ask accion again
+			printf("Player 1 has chosen to hit and received a new card\n");
+			printSession(session);
+		}
+		else if (code == TURN_PLAY_STAND){
+			//now player1 wait
+			playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY_WAIT, TURN_PLAY_RIVAL_DONE, &session->player1Deck);
+			finished = TRUE;
+			printf("Player 1 has finished their turn\n");
+			printSession(session);
+		}
+	}
+
+	//turn for player 2
+	finished = FALSE;
+	while(!finished){
+		playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY, TURN_PLAY_WAIT, &session->player2Deck);
+		unsigned int code;
+		receiveNumber(socketPlayer2, &code);
+		//if we are debbuging, show the code received
+		if(SERVER_DEBUG)
+			showCode(code);
+
+		if(code == TURN_PLAY_HIT){
+			//give new card to player 
+			card = getRandomCard(&(session->gameDeck));
+			giveCardToPlayer(card, player2, session);
+			if(calculatePoints(&session->player2Deck) > 21){
+				playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY_OUT, TURN_PLAY_WAIT, &session->player2Deck);
+				finished = TRUE;
+				printf("Player 2 has exceeded 21 points and is out\n");
+			}
+			//if not, we ask accion again
+			printf("Player 2 has chosen to hit and received a new card\n");
+			printSession(session);
+		}
+		else if (code == TURN_PLAY_STAND){
+			//now player1 wait
+			playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY_WAIT, TURN_PLAY_RIVAL_DONE, &session->player2Deck);
+			finished = TRUE;
+			printf("Player 2 has finished their turn\n");
+			printSession(session);
+		}
+	}
+
+	//determine winner of the round and update stacks and points
+	unsigned int points1 = calculatePoints(&session->player1Deck);
+	unsigned int points2 = calculatePoints(&session->player2Deck);
+	printf("Player 1 has %u points\n", points1);
+	printf("Player 2 has %u points\n", points2);
+
+	if(points1 > 21) points1 = 0;
+	if(points2 > 21) points2 = 0;
+
+	if(points1 > points2){
+		//player 1 wins
+		session->player1Stack += session->player2Bet;
+		session->player2Stack -= session->player2Bet;
+		printf("Player 1 wins the round and now has %u chips\n", session->player1Stack);
+		printf("Player 2 loses the round and now has %u chips\n", session->player2Stack);
+		sendNumber(socketPlayer1, TURN_GAME_WIN);
+		sendNumber(socketPlayer2, TURN_GAME_LOSE);
+		printf("%s wins the round\n", session->player1Name);
+	}
+	else if(points2 > points1){
+		//player 2 wins
+		session->player2Stack += session->player1Bet;
+		session->player1Stack -= session->player1Bet;
+		printf("Player 2 wins the round and now has %u chips\n", session->player2Stack);
+		printf("Player 1 loses the round and now has %u chips\n", session->player1Stack);
+		sendNumber(socketPlayer2, TURN_GAME_WIN);
+		sendNumber(socketPlayer1, TURN_GAME_LOSE);
+		printf("%s wins the round\n", session->player2Name);
+	}
+	else{
+		//tie
+		printf("The round is a tie, no chips are exchanged\n");
+		//enviamos nuevo codigo en caso de empate??
+	}
+
+	printSession(session);
+
+	//reset the bets for the next round
+	session->player1Bet = 0;
+	session->player2Bet = 0;
+}
 
 
 int main(int argc, char *argv[]){
@@ -306,10 +434,54 @@ int main(int argc, char *argv[]){
 	int turnBeginPlayer1 = TRUE; 
 	while(!gameOver){
 		//while the game isn't over
+		gameRound(socketPlayer1, socketPlayer2, &session);
+
+		/*-----------------------------------------------------------------------------------------------
+		//before the turn starts, give each player 2 cards 
+		card = getRandomCard(&session.gameDeck);
+		session.player1Deck.cards[0] = card;
+		session.player1Deck.numCards = 1;
+		card = getRandomCard(&session.gameDeck);
+		session.player1Deck.cards[1] = card;
+		session.player1Deck.numCards = 2;
+
+		card = getRandomCard(&session.gameDeck);
+		session.player2Deck.cards[0] = card;
+		session.player2Deck.numCards = 1;
+		card = getRandomCard(&session.gameDeck);
+		session.player2Deck.cards[1] = card;
+		session.player2Deck.numCards = 2;
+
 		if(turnBeginPlayer1) {
 			current_player = player1;
-			betNumberLogic(message1, socketPlayer1, session.player1Stack, session.player1Bet);
-			betNumberLogic(message2, socketPlayer2, session.player2Stack, session.player2Bet);
+			betNumberLogic(message1, socketPlayer1, &session.player1Stack, &session.player1Bet);
+			betNumberLogic(message2, socketPlayer2, &session.player2Stack, &session.player2Bet);
+			int turno_terminado = FALSE;
+
+			while(!turno_terminado){
+				//send data to active and pasive players
+				playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY, TURN_PLAY_WAIT, &session.player1Deck);
+				receiveNumber(socketPlayer1, &code);
+				//if we are debbuging, show the code received
+				if(SERVER_DEBUG)
+					showCode(code);
+
+				if(code == TURN_PLAY_HIT){
+					//give new card to player 
+					card = getRandomCard(&(session.gameDeck));
+					giveCardToPlayer(card, current_player, &session);
+					if(calculatePoints(&session.player1Deck) > 21){
+						playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY_OUT, TURN_PLAY_WAIT, &session.player1Deck);
+						turno_terminado = TRUE;
+					}
+					//if not, we ask accion again
+				}
+				else if (code == TURN_PLAY_STAND){
+					//now player1 wait
+					playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY_WAIT, TURN_PLAY_RIVAL_DONE, &session.player1Deck);
+					turno_terminado = TRUE;
+				}
+			}
 			playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY, TURN_PLAY_WAIT, &session.player1Deck);
 			memset(&code, 0, sizeof(unsigned int));
 			if(recv(socketPlayer1, &code, sizeof(unsigned int), 0) < 0)
@@ -335,12 +507,41 @@ int main(int argc, char *argv[]){
 					}
 					break;
 			}
-
+			
 		}
 		else {
 			current_player = player2;
-			betNumberLogic(message2, socketPlayer2, session.player2Stack, session.player2Bet);
-			betNumberLogic(message1, socketPlayer1, session.player1Stack, session.player1Bet);
+			betNumberLogic(message2, socketPlayer2, &session.player2Stack, &session.player2Bet);
+			betNumberLogic(message1, socketPlayer1, &session.player1Stack, &session.player1Bet);
+			int turno_terminado = FALSE;
+
+			while(!turno_terminado){
+				//send data to active and pasive players
+				playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY, TURN_PLAY_WAIT, &session.player2Deck);
+				receiveNumber(socketPlayer2, &code);
+				//if we are debbuging, show the code received
+				if(SERVER_DEBUG)
+					showCode(code);
+				
+				if(code == TURN_PLAY_HIT){
+					//give new card to player
+					card = getRandomCard(&(session.gameDeck));
+					giveCardToPlayer(card, current_player, &session);
+					if(calculatePoints(&session.player2Deck) > 21){
+						//player is out
+						playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY_OUT, TURN_PLAY_WAIT, &session.player2Deck);
+						turno_terminado = TRUE;
+					}
+					//if not, we ask accion again
+				}
+				else if (code == TURN_PLAY_STAND){
+					//now player2 wait
+					playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY_WAIT, TURN_PLAY_RIVAL_DONE, &session.player2Deck);
+					turno_terminado = TRUE;
+				}
+				
+			}
+			
 			playTurnLogic(socketPlayer2, socketPlayer1, TURN_PLAY, TURN_PLAY_WAIT, &session.player1Deck);
 			memset(&code, 0, sizeof(unsigned int));
 			if(recv(socketPlayer1, &code, sizeof(unsigned int), 0) < 0)
@@ -367,16 +568,22 @@ int main(int argc, char *argv[]){
 					}
 					break;
 			}
+			
 		}
+
+		//determinate the winner of the round and update stacks and points 
+
 		turnBeginPlayer1 = !turnBeginPlayer1;
 		//at the end of the loop check if any player has 0 chips left
-	
+		///-----------------------------------------------------------------------------------------------
+		*/
+
 		if(session.player1Stack == 0 || session.player2Stack == 0){
 			gameOver = 1; //if any player has no chips left, the game is over
 		}
 		
 		//gameOver = TRUE; //for testing purposes, end the game after one round
-		printSession(&session); //Debbug
+		//printSession(&session); //Debbug
 	}
 
 	// Close sockets

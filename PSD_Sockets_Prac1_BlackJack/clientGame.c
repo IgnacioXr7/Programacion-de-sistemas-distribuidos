@@ -58,6 +58,20 @@ void sendNumber (int socket, unsigned int number){
 		showError("ERROR while writing to socket");
 }
 
+void receiveNumber (int socket, unsigned int *number){
+	//receives an unsigned int from the given socket
+	int received = recv(socket, number, sizeof(unsigned int), 0);
+	if (received < 0)
+		showError("ERROR while reading from socket");
+}
+
+void receiveDeck (int socket, tDeck *deck){
+	//receives the deck of a player from their socket
+	int received = recv(socket, deck, sizeof(tDeck), 0);
+	if (received < 0)
+		showError("ERROR while reading from socket");
+}
+
 int main(int argc, char *argv[]){
 
 	int socketfd;						/** Socket descriptor */
@@ -72,6 +86,10 @@ int main(int argc, char *argv[]){
 	unsigned int bet;					/** Bet */
 	tDeck playerDeck;					/** Player's deck */
 	int wait = FALSE;
+	unsigned int points;				/** Player's points */
+	unsigned int action;				/** Player's action */
+	unsigned int rivalPoints;
+	tDeck rivalDeck;
 
 		// Check arguments!
 		if (argc != 3){
@@ -140,14 +158,11 @@ int main(int argc, char *argv[]){
 			switch(code){
 				case TURN_BET:
 					//recive my stack
-					memset(&stack, 0, sizeof(unsigned int));
-					if(recv(socketfd, &stack, sizeof(unsigned int), 0) < 0)
-						showError("ERROR while reading from the socket");
-					
-					printf("Your stack is: %u\n", stack);
+					receiveNumber(socketfd, &stack);
+
+					printf("Place your bet. Your stack is: %u\n", stack);
 					//place my bet 
 					bet = readBet();
-
 					//send to server
 					sendNumber(socketfd, bet);
 					break;
@@ -155,18 +170,46 @@ int main(int argc, char *argv[]){
 					printf("Bet is valid !!!\n");
 					break;
 				case TURN_PLAY:
+						//receive my points and deck BEFORE i take action
+						receiveNumber(socketfd, &points);
+						receiveDeck(socketfd, &playerDeck);
+						printf("Your points are: %u\n", points);
+						printf("Your deck is: ");
+						printDeck(&playerDeck); 
+						printf("\n");
+
 						//Player action 
-						bet = readOption();
+						action = readOption();
 						//send to server
-						sendNumber(socketfd, bet);
+						sendNumber(socketfd, action);
 					break;
 				case TURN_PLAY_WAIT:
+					//receive rival points and deck
+					receiveNumber(socketfd, &rivalPoints);
+					receiveDeck(socketfd, &rivalDeck);
+					printf("Waiting for your rival. Rival points are: %u\n", rivalPoints);
+					printf("Rival deck is: ");
+					printDeck(&rivalDeck);
+					printf("\n");
 					wait = TRUE;
 					break;
 				case TURN_PLAY_OUT:
-					printf("Limit of points exceeded, you are done\n");
+					receiveNumber(socketfd, &points);
+					receiveDeck(socketfd, &playerDeck);
+					printf("You have exceeded 21 points and are out. Your points are: %u\n", points);
+					printf("Your deck is: ");
+					printDeck(&playerDeck);
+					printf("\n");
+					wait = TRUE;
 					break;
-				
+				case TURN_GAME_WIN:
+					printf("You win the game!!!\n");
+					endOfGame = TRUE;
+					break;
+				case TURN_GAME_LOSE:
+					printf("You lose the game!!!\n");
+					endOfGame = TRUE;
+					break;
 			}
 		}
 		// Close socket
