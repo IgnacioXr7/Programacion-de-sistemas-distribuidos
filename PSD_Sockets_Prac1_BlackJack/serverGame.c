@@ -164,14 +164,14 @@ void playTurnLogic (int socketTurnPlayer, int socketWaitPlayer, int codeCurrentP
 		sendDeck(socketWaitPlayer, gameDeck);
 }
 
-void giveCardToPlayer (int card, tPlayer current_player, tSession session){
+void giveCardToPlayer (int card, tPlayer current_player, tSession *session){
 	if(current_player == player1){
-		session.player1Deck.cards[session.player1Deck.numCards] = card;
-		session.player1Deck.numCards++;
+		session->player1Deck.cards[session->player1Deck.numCards] = card;
+		session->player1Deck.numCards++;
 	}
 	else{
-		session.player2Deck.cards[session.player2Deck.numCards] = card;
-		session.player2Deck.numCards++;
+		session->player2Deck.cards[session->player2Deck.numCards] = card;
+		session->player2Deck.numCards++;
 	}
 }
 
@@ -195,7 +195,7 @@ int main(int argc, char *argv[]){
 	tThreadArgs *threadArgs; 			/** Thread parameters */
 	pthread_t threadID;					/** Thread ID */
 	tSession session;  					/** session -> game */
-	tDeck gameDeck;
+	
 	unsigned int card;
 	unsigned int code;
 	tPlayer current_player;
@@ -325,8 +325,8 @@ int main(int argc, char *argv[]){
 					break;
 				case TURN_PLAY_HIT:
 					//player whats another card 
-					card = getRandomCard(&gameDeck);
-					giveCardToPlayer(card, current_player, session);
+					card = getRandomCard(&(session.gameDeck));
+					giveCardToPlayer(card, current_player, &session);
 					if(calculatePoints(&session.player1Deck) > 21){
 						playTurnLogic(socketPlayer1, socketPlayer2, TURN_PLAY_OUT, TURN_PLAY_WAIT, &session.player1Deck);
 					}

@@ -104,7 +104,7 @@ int main(int argc, char *argv[]){
 			showError("ERROR while establishing connection");
 
 		// Init and read the message
-		printf("Enter message: ");
+		printf("Enter your name: ");
 		memset(playerName, 0, MAX_MSG_LENGTH);
 		fgets(playerName, MAX_MSG_LENGTH-1, stdin);
 		playerName[strlen(playerName)-1] = '\0'; // Remove newline character
@@ -152,7 +152,7 @@ int main(int argc, char *argv[]){
 					sendNumber(socketfd, bet);
 					break;
 				case TURN_BET_OK:
-					printf("Apuesta valida !!!\n");
+					printf("Bet is valid !!!\n");
 					break;
 				case TURN_PLAY:
 						//Player action 
