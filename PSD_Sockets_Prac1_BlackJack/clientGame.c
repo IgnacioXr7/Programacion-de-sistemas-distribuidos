@@ -210,6 +210,9 @@ int main(int argc, char *argv[]){
 					printf("You lose the game!!!\n");
 					endOfGame = TRUE;
 					break;
+				case TURN_PLAY_RIVAL_DONE:
+					printf("Your opponent has finished his turn\n");
+					break;
 			}
 		}
 		// Close socket
