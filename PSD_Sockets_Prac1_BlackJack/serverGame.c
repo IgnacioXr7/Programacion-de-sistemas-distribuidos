@@ -41,16 +41,16 @@ void printSession (tSession *session){
 
 		// Player 1
 		printf ("%s [bet:%d; %d chips] Deck:", session->player1Name, session->player1Bet, session->player1Stack);
-		printDeck (&(session->player1Deck));
+		printFancyDeck (&(session->player1Deck));
 
 		// Player 2
 		printf ("%s [bet:%d; %d chips] Deck:", session->player2Name, session->player2Bet, session->player2Stack);
-		printDeck (&(session->player2Deck));
+		printFancyDeck (&(session->player2Deck));
 
 		// Current game deck
 		if (DEBUG_PRINT_GAMEDECK){
 			printf ("Game deck: ");
-			printDeck (&(session->gameDeck));
+			printFancyDeck (&(session->gameDeck));
 		}
 }
 
@@ -204,8 +204,8 @@ void playerTurnLogic(int playerSocket, int rivalSocket, tDeck *deck, tSession *s
 			printSession(session);
 		}
 		else if (code == TURN_PLAY_STAND){
-			//now player1 wait
-			playTurnLogic(playerSocket, rivalSocket, TURN_PLAY_WAIT, TURN_PLAY_RIVAL_DONE, deck);
+			//now rival player wait
+			sendNumber(rivalSocket, TURN_PLAY_RIVAL_DONE);
 			finished = TRUE;
 			printf("%s has finished their turn\n", playerName);
 			printSession(session);
@@ -216,7 +216,6 @@ void playerTurnLogic(int playerSocket, int rivalSocket, tDeck *deck, tSession *s
 
 void gameRound(int socketPlayer1, int socketPlayer2, tSession *session){
 	//a round of BackJack 
-	unsigned int card;
 	unsigned int lessBet;
 	//give players INI_CARDS cards 
 	for(int i = 0; i < INI_CARDS; i++) {
@@ -238,7 +237,8 @@ void gameRound(int socketPlayer1, int socketPlayer2, tSession *session){
 	printf("The value of the bet in this round are %u points\n", lessBet);
 	//turns of the players 
 	playerTurnLogic(socketPlayer1, socketPlayer2, &session->player1Deck, session, session->player1Name, player1);
-    playerTurnLogic(socketPlayer2, socketPlayer1, &session->player2Deck, session, session->player2Name, player2);
+	tPlayer nextPlayer = getNextPlayer(player1);
+    playerTurnLogic(socketPlayer2, socketPlayer1, &session->player2Deck, session, session->player2Name, nextPlayer);
 
 	//determine winner of the round and update stacks and points
 	unsigned int points1 = calculatePoints(&session->player1Deck);
@@ -271,6 +271,10 @@ void gameRound(int socketPlayer1, int socketPlayer2, tSession *session){
 		//enviamos nuevo codigo en caso de empate??
 	}
 	printSession(session);
+	clearDeck (&(session->player1Deck));
+	clearDeck (&(session->player2Deck));
+	session->player1Bet = 0;
+	session->player2Bet = 0;
 }
 
 
@@ -293,10 +297,6 @@ int main(int argc, char *argv[]){
 	pthread_t threadID;					/** Thread ID */
 	tSession session;  					/** session -> game */
 	
-	unsigned int card;
-	unsigned int code;
-	tPlayer current_player;
-
 
 	// Seed
 	srand(time(0));
@@ -400,7 +400,6 @@ int main(int argc, char *argv[]){
 
 	//Game loop
 	int gameOver = FALSE;
-	int turnBeginPlayer1 = TRUE; 
 	while(!gameOver){
 		//while the game isn't over
 		gameRound(socketPlayer1, socketPlayer2, &session);

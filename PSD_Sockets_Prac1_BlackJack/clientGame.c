@@ -159,7 +159,7 @@ int main(int argc, char *argv[]){
 				case TURN_BET:
 					//recive my stack
 					receiveNumber(socketfd, &stack);
-
+					printf ("\n ------ New round begins ------\n");
 					printf("Place your bet. Your stack is: %u\n", stack);
 					//place my bet 
 					bet = readBet();
