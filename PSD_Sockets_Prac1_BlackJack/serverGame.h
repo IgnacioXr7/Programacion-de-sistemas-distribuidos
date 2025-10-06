@@ -99,4 +99,9 @@ unsigned int calculatePoints (tDeck *deck);
  * @return Randomly selected card from the game deck.
  */
 unsigned int getRandomCard (tDeck* deck);
- 
+
+/**
+ * Handles a game using threads.
+ * @param args Thread arguments (sockets of the players).
+ */
+void* handleGames(void* args);

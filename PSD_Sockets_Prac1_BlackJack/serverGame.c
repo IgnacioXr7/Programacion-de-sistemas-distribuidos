@@ -278,6 +278,48 @@ void gameRound(int socketPlayer1, int socketPlayer2, tSession *session){
 }
 
 
+void* handleGames(void* args){
+	//thread function to handle multiple games at the same time
+	tThreadArgs *threadArgs = (tThreadArgs *) args;
+	int socketPlayer1 = threadArgs->socketPlayer1;
+	int socketPlayer2 = threadArgs->socketPlayer2;
+	tSession session;  					
+	//Iniciate a new session aka a new game
+	initSession(&session);
+	printSession(&session); 
+
+	//Game loop
+	int gameOver = FALSE;
+	while(!gameOver){
+		//while the game isn't over
+		gameRound(socketPlayer1, socketPlayer2, &session);
+		if(session.player1Stack == 0 || session.player2Stack == 0){
+			if(session.player1Stack == 0) {
+				sendNumber(socketPlayer2, TURN_GAME_WIN);
+				sendNumber(socketPlayer1, TURN_GAME_LOSE);
+			}
+			else {
+				sendNumber(socketPlayer1, TURN_GAME_WIN);
+				sendNumber(socketPlayer2, TURN_GAME_LOSE);
+			}
+			printf("Player 1  stack: %u", session.player1Stack);
+			printf("Player 2 stack: %u", session.player2Stack);
+			gameOver = 1; //if any player has no chips left, the game is over
+		}
+		//gameOver = TRUE; //for testing purposes, end the game after one round
+		printSession(&session); //Debbug
+	}
+
+	// Close sockets
+	close(socketPlayer1);
+	close(socketPlayer2);
+
+	//free memory
+	free(threadArgs);
+
+	pthread_exit(NULL);
+}
+
 int main(int argc, char *argv[]){
 
 	int socketfd;						/** Socket descriptor */
@@ -335,92 +377,73 @@ int main(int argc, char *argv[]){
 	// Listen
 	listen(socketfd, 10);
 
-	// Get length of client structure
-	client1Length = sizeof(player1Address);
+	//Loop to handle multiple games
+	while(1){
+		//player1
+		printf("Waiting for player 1...\n");
+		// Get length of client structure
+		client1Length = sizeof(player1Address);
+		// Accept!
+		socketPlayer1 = accept(socketfd, (struct sockaddr *) &player1Address, &client1Length);
+		// Check accept result
+		if (socketPlayer1 < 0)
+			showError("ERROR while accepting player 1");
+		// Init and read message
+		memset(message1, 0, MAX_MSG_LENGTH);
+		message1Length = recv(socketPlayer1, message1, MAX_MSG_LENGTH-1, 0);
+		// Check read bytes
+		if (message1Length < 0)
+			showError("ERROR while reading from socket");
+		// Save name of player1 and show message
+		strcpy(session.player1Name, message1);
+		printf("Player1: %s\n", message1);
+		// Get the message length
+		memset (message1, 0, MAX_MSG_LENGTH);
+		strcpy (message1, "Player 1 confirmed!! \n");
+		message1Length = send(socketPlayer1, message1, strlen(message1), 0);
+		// Check bytes sent
+		if (message1Length < 0)
+			showError("ERROR while writing to socket");
 
-	// Accept!
-	socketPlayer1 = accept(socketfd, (struct sockaddr *) &player1Address, &client1Length);
-	
-	// Check accept result
-	if (socketPlayer1 < 0)
-		showError("ERROR while accepting");	 
+		//player2
+		printf("Waiting for player 2...\n");
+		// Get length of client structure
+		client2Length = sizeof(player2Address);
+		// Accept!
+		socketPlayer2 = accept(socketfd, (struct sockaddr *) &player2Address, &client2Length);
+		// Check accept result
+		if (socketPlayer2 < 0)
+			showError("ERROR while accepting player 2");
+		// Init and read message
+		memset(message2, 0, MAX_MSG_LENGTH);
+		message2Length = recv(socketPlayer2, message2, MAX_MSG_LENGTH-1, 0);
+		// Check read bytes
+		if (message2Length < 0)
+			showError("ERROR while reading from socket");
+		// Save name of player2 and show message
+		strcpy(session.player2Name, message2);
+		printf("Player2: %s\n", message2);
+		// Check bytes sent
+		if (message2Length < 0)
+			showError("ERROR while writing to socket");
+		printf("The 2 players have been confirmed, let's play... \n");
 
-	// Init and read message
-	memset(message1, 0, MAX_MSG_LENGTH);
-	message1Length = recv(socketPlayer1, message1, MAX_MSG_LENGTH-1, 0);
-
-	// Check read bytes
-	if (message1Length < 0)
-		showError("ERROR while reading from socket");
-
-	// Same name of player1 and show message
-	strcpy(session.player1Name, message1);
-	printf("Player1: %s\n", message1);
-
-	// Get the message length
-	memset (message1, 0, MAX_MSG_LENGTH);
-	strcpy (message1, "Player 1 confirmed!! \n");
-	message1Length = send(socketPlayer1, message1, strlen(message1), 0);
-
-	// Check bytes sent
-	if (message1Length < 0)
-		showError("ERROR while writing to socket");
-	
-	// Get length of client structure
-	client2Length = sizeof(player2Address);
-
-	// Accept!
-	socketPlayer2 = accept(socketfd, (struct sockaddr *) &player2Address, &client2Length);
-	
-	// Check accept result
-	if (socketPlayer2 < 0)
-		showError("ERROR while accepting");	  
-
-	// Init and read message
-	memset(message2, 0, MAX_MSG_LENGTH);
-	message2Length = recv(socketPlayer2, message2, MAX_MSG_LENGTH-1, 0);
-
-	// Check read bytes
-	if (message2Length < 0)
-		showError("ERROR while reading from socket");
-
-	// Save name of player2 and show message
-	strcpy(session.player2Name, message2);
-	printf("Player2: %s\n", message2);
-
-	// Check bytes sent
-	if (message2Length < 0)
-		showError("ERROR while writing to socket");
-
-	printf("The 2 players have been confirmed, let's play... \n");
-
-	//Iniciate a new session aka a new game
-	initSession(&session);
-	printSession(&session); //Debbug
-
-	//Game loop
-	int gameOver = FALSE;
-	while(!gameOver){
-		//while the game isn't over
-		gameRound(socketPlayer1, socketPlayer2, &session);
-		if(session.player1Stack == 0 || session.player2Stack == 0){
-			if(session.player1Stack == 0) {
-				sendNumber(socketPlayer2, TURN_GAME_WIN);
-				sendNumber(socketPlayer1, TURN_GAME_LOSE);
-			}
-			else {
-				sendNumber(socketPlayer1, TURN_GAME_WIN);
-				sendNumber(socketPlayer2, TURN_GAME_LOSE);
-			}
-			printf("Player 1  stack: %u", session.player1Stack);
-			printf("Player 2 stack: %u", session.player2Stack);
-			gameOver = 1; //if any player has no chips left, the game is over
+		//create thread for the game
+		threadArgs = (tThreadArgs *) malloc (sizeof(tThreadArgs));
+		threadArgs->socketPlayer1 = socketPlayer1;
+		threadArgs->socketPlayer2 = socketPlayer2;
+		if(pthread_create(&threadID, NULL, handleGames, (void*) threadArgs) != 0)
+			showError("ERROR creating thread");
+		//detach thread
+		pthread_detach(threadID);
+		if(SERVER_DEBUG){
+			printf("Thread created, ID: %ld\n", threadID);
 		}
-		//gameOver = TRUE; //for testing purposes, end the game after one round
-		printSession(&session); //Debbug
+		printf("Game started in thread\n");
+			
 	}
-	// Close sockets
-	close(socketPlayer1);
-	close(socketPlayer2);
+
+	//close the main socket
 	close(socketfd);
+	return 0;
 }

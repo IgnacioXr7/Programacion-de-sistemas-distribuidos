@@ -85,7 +85,6 @@ int main(int argc, char *argv[]){
 	unsigned int stack;					/** Stack */
 	unsigned int bet;					/** Bet */
 	tDeck playerDeck;					/** Player's deck */
-	int wait = FALSE;
 	unsigned int points;				/** Player's points */
 	unsigned int action;				/** Player's action */
 	unsigned int rivalPoints;
@@ -191,7 +190,6 @@ int main(int argc, char *argv[]){
 					printf("Rival deck is: ");
 					printDeck(&rivalDeck);
 					printf("\n");
-					wait = TRUE;
 					break;
 				case TURN_PLAY_OUT:
 					receiveNumber(socketfd, &points);
@@ -200,7 +198,6 @@ int main(int argc, char *argv[]){
 					printf("Your deck is: ");
 					printDeck(&playerDeck);
 					printf("\n");
-					wait = TRUE;
 					break;
 				case TURN_GAME_WIN:
 					printf("You win the game!!!\n");
