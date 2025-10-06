@@ -132,14 +132,8 @@ int main(int argc, char *argv[]){
 		// Check the number of bytes sent
 		if (nameLength < 0)
 			showError("ERROR while writing the name");
-		// Init for reading incoming message
-		//memset(playerName, 0, MAX_MSG_LENGTH);
-		//nameLength = recv(socketfd, playerName, MAX_MSG_LENGTH-1, 0);
-		// Check bytes read
-		//if (nameLength < 0)
-			//showError("ERROR while reading from the socket");
-		// Show the returned message
-		//printf("%s\n",playerName);
+		
+		printf("WELCOME to the BlackJack game %s!!!\n", playerName);
 		//in the beginning, the game is not finished
 		endOfGame = FALSE;
 		//main loop of the game
@@ -159,7 +153,7 @@ int main(int argc, char *argv[]){
 					//recive my stack
 					receiveNumber(socketfd, &stack);
 					printf ("\n ------ New round begins ------\n");
-					printf("Place your bet. Your stack is: %u\n", stack);
+					printf("Place your bet %s. Your stack is: %u\n",playerName, stack);
 					//place my bet 
 					bet = readBet();
 					//send to server

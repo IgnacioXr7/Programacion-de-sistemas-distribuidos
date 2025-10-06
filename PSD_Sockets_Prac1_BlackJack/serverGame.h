@@ -22,6 +22,8 @@
 typedef struct threadArgs{
 	int socketPlayer1;
 	int socketPlayer2;
+	char player1Name[STRING_LENGTH];
+	char player2Name[STRING_LENGTH];
 } tThreadArgs;
 
 /** Session represents a game between 2 players */

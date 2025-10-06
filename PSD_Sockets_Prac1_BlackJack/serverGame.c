@@ -243,8 +243,8 @@ void gameRound(int socketPlayer1, int socketPlayer2, tSession *session){
 	//determine winner of the round and update stacks and points
 	unsigned int points1 = calculatePoints(&session->player1Deck);
 	unsigned int points2 = calculatePoints(&session->player2Deck);
-	printf("Player 1 has %u points\n", points1);
-	printf("Player 2 has %u points\n", points2);
+	printf("Player %s has %u points\n", session->player1Name, points1);
+	printf("Player %s has %u points\n", session->player2Name, points2);
 
 	if(points1 > 21) points1 = 0;
 	if(points2 > 21) points2 = 0;
@@ -283,9 +283,17 @@ void* handleGames(void* args){
 	tThreadArgs *threadArgs = (tThreadArgs *) args;
 	int socketPlayer1 = threadArgs->socketPlayer1;
 	int socketPlayer2 = threadArgs->socketPlayer2;
-	tSession session;  					
+	tSession session;  	
+	
+	//ID of the thread
+	pthread_t threadID = pthread_self();
+	printf("Game number: %ld starting\n", threadID);
+	
 	//Iniciate a new session aka a new game
 	initSession(&session);
+	//copy the names of the players to the session
+	strcpy(session.player1Name, threadArgs->player1Name);
+	strcpy(session.player2Name, threadArgs->player2Name);
 	printSession(&session); 
 
 	//Game loop
@@ -293,6 +301,8 @@ void* handleGames(void* args){
 	while(!gameOver){
 		//while the game isn't over
 		gameRound(socketPlayer1, socketPlayer2, &session);
+		//printf for the thread id
+		printf("Game number: %ld finished a round\n", threadID);
 		if(session.player1Stack == 0 || session.player2Stack == 0){
 			if(session.player1Stack == 0) {
 				sendNumber(socketPlayer2, TURN_GAME_WIN);
@@ -302,8 +312,8 @@ void* handleGames(void* args){
 				sendNumber(socketPlayer1, TURN_GAME_WIN);
 				sendNumber(socketPlayer2, TURN_GAME_LOSE);
 			}
-			printf("Player 1  stack: %u", session.player1Stack);
-			printf("Player 2 stack: %u", session.player2Stack);
+			printf("Player %s stack: %u\n", session.player1Name, session.player1Stack);
+			printf("Player %s stack: %u\n", session.player2Name, session.player2Stack);
 			gameOver = 1; //if any player has no chips left, the game is over
 		}
 		//gameOver = TRUE; //for testing purposes, end the game after one round
@@ -426,20 +436,21 @@ int main(int argc, char *argv[]){
 		// Check bytes sent
 		if (message2Length < 0)
 			showError("ERROR while writing to socket");
+		
 		printf("The 2 players have been confirmed, let's play... \n");
 
 		//create thread for the game
 		threadArgs = (tThreadArgs *) malloc (sizeof(tThreadArgs));
 		threadArgs->socketPlayer1 = socketPlayer1;
 		threadArgs->socketPlayer2 = socketPlayer2;
+		//copy the names of the players to the thread args
+		strcpy(threadArgs->player1Name, session.player1Name);
+		strcpy(threadArgs->player2Name, session.player2Name);
 		if(pthread_create(&threadID, NULL, handleGames, (void*) threadArgs) != 0)
 			showError("ERROR creating thread");
 		//detach thread
 		pthread_detach(threadID);
-		if(SERVER_DEBUG){
-			printf("Thread created, ID: %ld\n", threadID);
-		}
-		printf("Game started in thread\n");
+		printf("Game created successfully, number: %ld\n", threadID);
 			
 	}
 
