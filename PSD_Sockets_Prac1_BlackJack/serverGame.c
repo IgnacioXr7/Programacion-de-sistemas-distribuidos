@@ -253,16 +253,17 @@ void gameRound(int socketPlayer1, int socketPlayer2, tSession *session){
 		//player 1 wins
 		session->player1Stack += lessBet;
 		session->player2Stack -= lessBet;
-		printf("Player 1 wins the round and now has %u chips\n", session->player1Stack);
-		printf("Player 2 loses the round and now has %u chips\n", session->player2Stack);
+		printf("Player %s wins the round and now has %u chips\n", session->player1Name, session->player1Stack);
+		printf("Player %s loses the round and now has %u chips\n", session->player2Name, session->player2Stack);
 		printf("%s wins the round\n", session->player1Name);
 	}
 	else if(points2 > points1){
 		//player 2 wins
 		session->player2Stack += lessBet;
 		session->player1Stack -= lessBet;
-		printf("Player 2 wins the round and now has %u chips\n", session->player2Stack);
-		printf("Player 1 loses the round and now has %u chips\n", session->player1Stack);
+
+		printf("Player %s wins the round and now has %u chips\n", session->player2Name, session->player2Stack);
+		printf("Player %s loses the round and now has %u chips\n", session->player1Name, session->player1Stack);
 		printf("%s wins the round\n", session->player2Name);
 	}
 	else{
@@ -440,7 +441,9 @@ int main(int argc, char *argv[]){
 		printf("The 2 players have been confirmed, let's play... \n");
 
 		//create thread for the game
-		threadArgs = (tThreadArgs *) malloc (sizeof(tThreadArgs));
+		if ((threadArgs = (tThreadArgs *) malloc (sizeof(tThreadArgs))) == NULL)
+				showError("Error while allocating memory");
+
 		threadArgs->socketPlayer1 = socketPlayer1;
 		threadArgs->socketPlayer2 = socketPlayer2;
 		//copy the names of the players to the thread args

@@ -168,7 +168,7 @@ int main(int argc, char *argv[]){
 						receiveDeck(socketfd, &playerDeck);
 						printf("Your points are: %u\n", points);
 						printf("Your deck is: ");
-						printDeck(&playerDeck); 
+						printFancyDeck(&playerDeck); 
 						printf("\n");
 
 						//Player action 
@@ -182,7 +182,7 @@ int main(int argc, char *argv[]){
 					receiveDeck(socketfd, &rivalDeck);
 					printf("Waiting for your rival. Rival points are: %u\n", rivalPoints);
 					printf("Rival deck is: ");
-					printDeck(&rivalDeck);
+					printFancyDeck(&rivalDeck);
 					printf("\n");
 					break;
 				case TURN_PLAY_OUT:
@@ -190,7 +190,7 @@ int main(int argc, char *argv[]){
 					receiveDeck(socketfd, &playerDeck);
 					printf("You have exceeded 21 points and are out. Your points are: %u\n", points);
 					printf("Your deck is: ");
-					printDeck(&playerDeck);
+					printFancyDeck(&playerDeck);
 					printf("\n");
 					break;
 				case TURN_GAME_WIN:
