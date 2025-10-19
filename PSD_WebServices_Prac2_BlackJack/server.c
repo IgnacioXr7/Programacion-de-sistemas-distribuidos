@@ -23,6 +23,10 @@ void initGame (tGame *game){
 	// Game status variables
 	game->endOfGame = FALSE;
 	game->status = gameEmpty;
+
+	//mutex y variable de condicion
+	pthread_mutex_init(&game->gameMutex, NULL); //funcion espera la dir de memoria 
+	pthread_cond_init(&game->turnCond, NULL);
 }
 
 void initServerStructures (struct soap *soap){
@@ -118,21 +122,73 @@ void copyGameStatusStructure (blackJackns__tBlock* status, char* message, blackJ
 	status->code = newCode;	
 }
 
+// funciones aux mias
+void copyPlayerName(xsd__string *dest, blackJackns__tMessage playerName){
+	//liberar memoria anterior si existe
+    if (*dest != NULL) free(*dest);
+    
+    //reservar nueva memoria con espacio + '\0'
+    *dest = (xsd__string) malloc(playerName.__size + 1);
+    
+    //copiar y añadir '\0'
+    strncpy(*dest, playerName.msg, playerName.__size);
+    (*dest)[playerName.__size] = '\0';
+}
 
+//
 
 int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, int* result){
-		
-	int gameIndex;
+	// Set \0 at the end of the string
+	playerName.msg[playerName.__size] = 0;
 
-		// Set \0 at the end of the string
-		playerName.msg[playerName.__size] = 0;
+	if (DEBUG_SERVER)
+		printf ("[Register] Registering new player -> [%s]\n", playerName.msg);
+	
+	for(int i = 0; i < MAX_GAMES; i++){
+		pthread_mutex_lock(&(games[i].gameMutex));
 
-		if (DEBUG_SERVER)
-			printf ("[Register] Registering new player -> [%s]\n", playerName.msg);
+		if(games[i].status == gameEmpty){
+			//hemos encontrado un hueco, metemos al primer jugador
+			copyPlayerName(&games[i].player1Name, playerName);
+			games[i].status = gameWaitingPlayer;
+			games[i].endOfGame = FALSE;
+			pthread_mutex_unlock(&(games[i].gameMutex));
+			*result = i;
+			return SOAP_OK;
+		}
+		else if(games[i].status == gameWaitingPlayer){
+			//hemos encontrado una partida que espera al jugador 2
+			if(strcmp(games[i].player1Name, playerName.msg) == 0){
+				//nombre repetido en la misma partida
+				pthread_mutex_unlock(&games[i].gameMutex);
+				*result = ERROR_NAME_REPEATED;
+				return SOAP_OK;
+			}
+			else{
+				//entra el segundo jugador, empezamos partida, se reparten cartas
+				copyPlayerName(&games[i].player2Name, playerName);
+				games[i].status = gameReady;
+				initDeck(&games[i].gameDeck);
+				clearDeck(&games[i].player1Deck);
+				clearDeck(&games[i].player2Deck);
 
-	
-	
-	
+				for(int c = 0; c < 2; c++){
+					games[i].player1Deck.cards[c] = getRandomCard(&games[i].gameDeck);
+                    games[i].player2Deck.cards[c] = getRandomCard(&games[i].gameDeck);
+				}
+				games[i].player1Deck.__size = 2;
+				games[i].player2Deck.__size = 2;
+
+				//el primero en jugar se escoge de manera aleatoria
+				games[i].currentPlayer = (rand() % 2 == 0) ? player1 : player2;
+				games[i].endOfGame = FALSE;
+
+				pthread_mutex_unlock(&games[i].gameMutex);
+				*result = i;
+				return SOAP_OK;
+			}
+		}
+	}
 
   	return SOAP_OK;
 }

@@ -54,6 +54,8 @@ typedef struct game{
 	int endOfGame;							/** Flag to control the end of the game */
 	tGameState status;						/** Flag to indicate the status of this game */
 
+	pthread_mutex_t gameMutex; 				//OBJETO mutex para sincronizar acceso a una partida
+	pthread_cond_t turnCond;				//OBJETO variable de condicion para el turno
 
 }tGame;
 
