@@ -4,14 +4,14 @@
     xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-    xmlns:blackJackns="urn:blackJackns"
-    xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd">
- <SOAP-ENV:Body>
-  <bkackJackns:playerMove>
+    xmlns:blackJackns="urn:blackJackns">
+ <SOAP-ENV:Body SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <blackJackns:playerMove>
    <playerName>
     <msg></msg>
    </playerName>
    <gameId>0</gameId>
-  </bkackJackns:playerMove>
+   <action>0</action>
+  </blackJackns:playerMove>
  </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>

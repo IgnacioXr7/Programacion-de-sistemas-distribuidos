@@ -4,10 +4,9 @@
     xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-    xmlns:blackJackns="urn:blackJackns"
-    xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd">
- <SOAP-ENV:Body>
-  <bkackJackns:playerMoveResponse>
+    xmlns:blackJackns="urn:blackJackns">
+ <SOAP-ENV:Body SOAP-ENV:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/">
+  <blackJackns:playerMoveResponse>
    <status>
     <code>0</code>
     <msgStruct>
@@ -17,6 +16,6 @@
      <cards>0</cards>
     </deck>
    </status>
-  </bkackJackns:playerMoveResponse>
+  </blackJackns:playerMoveResponse>
  </SOAP-ENV:Body>
 </SOAP-ENV:Envelope>

@@ -7,7 +7,6 @@
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xmlns:xsd="http://www.w3.org/2001/XMLSchema"
   xmlns:blackJackns="urn:blackJackns"
-  xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd"
   xmlns:SOAP="http://schemas.xmlsoap.org/wsdl/soap/"
   xmlns:HTTP="http://schemas.xmlsoap.org/wsdl/http/"
   xmlns:MIME="http://schemas.xmlsoap.org/wsdl/mime/"
@@ -23,7 +22,6 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:xsd="http://www.w3.org/2001/XMLSchema"
     xmlns:blackJackns="urn:blackJackns"
-    xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd"
     xmlns="http://www.w3.org/2001/XMLSchema"
     elementFormDefault="unqualified"
     attributeFormDefault="unqualified">
@@ -59,20 +57,6 @@
     </complexType>
   </schema>
 
-  <schema targetNamespace="http://tempuri.org/bkackJackns.xsd"
-    xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
-    xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
-    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
-    xmlns:blackJackns="urn:blackJackns"
-    xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd"
-    xmlns="http://www.w3.org/2001/XMLSchema"
-    elementFormDefault="unqualified"
-    attributeFormDefault="unqualified">
-    <import namespace="urn:blackJackns"/>
-    <import namespace="http://schemas.xmlsoap.org/soap/encoding/"/>
-  </schema>
-
 </types>
 
 <message name="registerRequest">
@@ -92,6 +76,16 @@
   <part name="status" type="blackJackns:tBlock"/><!-- blackJackns__getStatus::status -->
 </message>
 
+<message name="playerMoveRequest">
+  <part name="playerName" type="blackJackns:tMessage"/><!-- blackJackns__playerMove::playerName -->
+  <part name="gameId" type="xsd:int"/><!-- blackJackns__playerMove::gameId -->
+  <part name="action" type="xsd:int"/><!-- blackJackns__playerMove::action -->
+</message>
+
+<message name="playerMoveResponse">
+  <part name="status" type="blackJackns:tBlock"/><!-- blackJackns__playerMove::status -->
+</message>
+
 <portType name="blackJackPortType">
   <operation name="register">
     <documentation>Service definition of function blackJackns__register</documentation>
@@ -102,6 +96,11 @@
     <documentation>Service definition of function blackJackns__getStatus</documentation>
     <input message="tns:getStatusRequest"/>
     <output message="tns:getStatusResponse"/>
+  </operation>
+  <operation name="playerMove">
+    <documentation>Service definition of function blackJackns__playerMove</documentation>
+    <input message="tns:playerMoveRequest"/>
+    <output message="tns:playerMoveResponse"/>
   </operation>
 </portType>
 
@@ -117,6 +116,15 @@
     </output>
   </operation>
   <operation name="getStatus">
+    <SOAP:operation style="rpc" soapAction=""/>
+    <input>
+          <SOAP:body use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:blackJackns"/>
+    </input>
+    <output>
+          <SOAP:body use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:blackJackns"/>
+    </output>
+  </operation>
+  <operation name="playerMove">
     <SOAP:operation style="rpc" soapAction=""/>
     <input>
           <SOAP:body use="encoded" encodingStyle="http://schemas.xmlsoap.org/soap/encoding/" namespace="urn:blackJackns"/>

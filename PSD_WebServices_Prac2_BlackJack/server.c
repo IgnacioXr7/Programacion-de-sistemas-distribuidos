@@ -154,3 +154,16 @@ int main(int argc, char **argv){
 	
 	return 0;
 }
+
+//implmentacion de los servicios
+
+int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, int gameId, blackJackns__tBlock* status){
+
+	return SOAP_OK;
+}
+
+int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName, int gameId, int action, blackJackns__tBlock* status){
+
+
+	return SOAP_OK;
+}
