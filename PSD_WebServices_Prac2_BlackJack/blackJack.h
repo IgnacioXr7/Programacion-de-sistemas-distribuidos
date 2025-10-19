@@ -73,3 +73,11 @@ typedef struct tBlock{
 }blackJackns__tBlock;
 
 int blackJackns__register  	(blackJackns__tMessage playerName, int* result);
+
+//new services
+
+//servicio para obtener el estado de la partida
+int blackJackns__getStatus   (blackJackns__tMessage playerName, int gameId, blackJackns__tBlock* status);
+
+//sevicio para realizer un movimiento (pedir carta o plantarse)
+int bkackJackns__playerMove   (blackJackns__tMessage playerName, int gameId, blackJackns__tBlock* status);

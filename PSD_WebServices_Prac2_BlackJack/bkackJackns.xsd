@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+  <schema targetNamespace="http://tempuri.org/bkackJackns.xsd"
+    xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+    xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:blackJackns="urn:blackJackns"
+    xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd"
+    xmlns="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="unqualified"
+    attributeFormDefault="unqualified">
+    <import namespace="urn:blackJackns"/>
+    <import namespace="http://schemas.xmlsoap.org/soap/encoding/"/>
+    <complexType name="tMessage"><!-- tMessage -->
+          <sequence>
+            <element name="msg" type="xsd:byte" minOccurs="0" maxOccurs="unbounded"/><!-- tMessage::__size -->
+          </sequence>
+    </complexType>
+    <complexType name="tDeck"><!-- tDeck -->
+          <sequence>
+            <element name="cards" type="xsd:unsignedInt" minOccurs="0" maxOccurs="unbounded"/><!-- tDeck::__size -->
+          </sequence>
+    </complexType>
+    <complexType name="tBlock"><!-- tBlock -->
+          <sequence>
+            <element name="code" type="xsd:int" minOccurs="1" maxOccurs="1"/><!-- tBlock::code -->
+            <element name="msgStruct" type="blackJackns:tMessage" minOccurs="1" maxOccurs="1"/><!-- tBlock::msgStruct -->
+            <element name="deck" type="blackJackns:tDeck" minOccurs="1" maxOccurs="1"/><!-- tBlock::deck -->
+          </sequence>
+    </complexType>
+    <!-- operation request element -->
+    <element name="playerMove">
+      <complexType>
+          <sequence>
+            <element name="playerName" type="blackJackns:tMessage" minOccurs="1" maxOccurs="1"/><!-- bkackJackns__playerMove::playerName -->
+            <element name="gameId" type="xsd:int" minOccurs="1" maxOccurs="1"/><!-- bkackJackns__playerMove::gameId -->
+          </sequence>
+      </complexType>
+    </element>
+    <!-- operation response element -->
+    <element name="playerMoveResponse">
+      <complexType>
+          <sequence>
+            <element name="status" type="blackJackns:tBlock" minOccurs="0" maxOccurs="1"/><!-- bkackJackns__playerMove::status -->
+          </sequence>
+      </complexType>
+    </element>
+  </schema>
+

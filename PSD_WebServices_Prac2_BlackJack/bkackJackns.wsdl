@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions name="Service"
+  targetNamespace="http://tempuri.org/bkackJackns.xsd/Service.wsdl"
+  xmlns:tns="http://tempuri.org/bkackJackns.xsd/Service.wsdl"
+  xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+  xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+  xmlns:blackJackns="urn:blackJackns"
+  xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd"
+  xmlns:SOAP="http://schemas.xmlsoap.org/wsdl/soap/"
+  xmlns:HTTP="http://schemas.xmlsoap.org/wsdl/http/"
+  xmlns:MIME="http://schemas.xmlsoap.org/wsdl/mime/"
+  xmlns:DIME="http://schemas.xmlsoap.org/ws/2002/04/dime/wsdl/"
+  xmlns:WSDL="http://schemas.xmlsoap.org/wsdl/"
+  xmlns="http://schemas.xmlsoap.org/wsdl/">
+
+<types>
+
+  <schema targetNamespace="urn:blackJackns"
+    xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+    xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:blackJackns="urn:blackJackns"
+    xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd"
+    xmlns="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="unqualified"
+    attributeFormDefault="unqualified">
+    <import namespace="http://schemas.xmlsoap.org/soap/encoding/"/>
+    <simpleType name="tMessage"><!-- blackJackns__tMessage -->
+      <restriction base="bkackJackns:tMessage">
+      </restriction>
+    </simpleType>
+    <simpleType name="tDeck"><!-- blackJackns__tDeck -->
+      <restriction base="bkackJackns:tDeck">
+      </restriction>
+    </simpleType>
+    <simpleType name="tBlock"><!-- blackJackns__tBlock -->
+      <restriction base="bkackJackns:tBlock">
+      </restriction>
+    </simpleType>
+  </schema>
+
+  <schema targetNamespace="http://tempuri.org/bkackJackns.xsd"
+    xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/"
+    xmlns:SOAP-ENC="http://schemas.xmlsoap.org/soap/encoding/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+    xmlns:blackJackns="urn:blackJackns"
+    xmlns:bkackJackns="http://tempuri.org/bkackJackns.xsd"
+    xmlns="http://www.w3.org/2001/XMLSchema"
+    elementFormDefault="unqualified"
+    attributeFormDefault="unqualified">
+    <import namespace="urn:blackJackns"/>
+    <import namespace="http://schemas.xmlsoap.org/soap/encoding/"/>
+    <complexType name="tMessage"><!-- tMessage -->
+          <sequence>
+            <element name="msg" type="xsd:byte" minOccurs="0" maxOccurs="unbounded"/><!-- tMessage::__size -->
+          </sequence>
+    </complexType>
+    <complexType name="tDeck"><!-- tDeck -->
+          <sequence>
+            <element name="cards" type="xsd:unsignedInt" minOccurs="0" maxOccurs="unbounded"/><!-- tDeck::__size -->
+          </sequence>
+    </complexType>
+    <complexType name="tBlock"><!-- tBlock -->
+          <sequence>
+            <element name="code" type="xsd:int" minOccurs="1" maxOccurs="1"/><!-- tBlock::code -->
+            <element name="msgStruct" type="blackJackns:tMessage" minOccurs="1" maxOccurs="1"/><!-- tBlock::msgStruct -->
+            <element name="deck" type="blackJackns:tDeck" minOccurs="1" maxOccurs="1"/><!-- tBlock::deck -->
+          </sequence>
+    </complexType>
+    <!-- operation request element -->
+    <element name="playerMove">
+      <complexType>
+          <sequence>
+            <element name="playerName" type="blackJackns:tMessage" minOccurs="1" maxOccurs="1"/><!-- bkackJackns__playerMove::playerName -->
+            <element name="gameId" type="xsd:int" minOccurs="1" maxOccurs="1"/><!-- bkackJackns__playerMove::gameId -->
+          </sequence>
+      </complexType>
+    </element>
+    <!-- operation response element -->
+    <element name="playerMoveResponse">
+      <complexType>
+          <sequence>
+            <element name="status" type="blackJackns:tBlock" minOccurs="0" maxOccurs="1"/><!-- bkackJackns__playerMove::status -->
+          </sequence>
+      </complexType>
+    </element>
+  </schema>
+
+</types>
+
+<message name="playerMoveRequest">
+  <part name="Body" element="bkackJackns:playerMove"/><!-- bkackJackns__playerMove::bkackJackns__playerMove -->
+</message>
+
+<message name="playerMoveResponse">
+  <part name="Body" element="bkackJackns:playerMoveResponse"/>
+</message>
+
+<portType name="ServicePortType">
+  <operation name="playerMove">
+    <documentation>Service definition of function bkackJackns__playerMove</documentation>
+    <input message="tns:playerMoveRequest"/>
+    <output message="tns:playerMoveResponse"/>
+  </operation>
+</portType>
+
+<binding name="Service" type="tns:ServicePortType">
+  <SOAP:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+  <operation name="playerMove">
+    <SOAP:operation soapAction=""/>
+    <input>
+          <SOAP:body use="literal" parts="Body"/>
+    </input>
+    <output>
+          <SOAP:body use="literal" parts="Body"/>
+    </output>
+  </operation>
+</binding>
+
+<service name="Service">
+  <documentation>gSOAP 2.8.133 generated service definition</documentation>
+  <port name="Service" binding="tns:Service">
+    <SOAP:address location="http://localhost:80"/>
+  </port>
+</service>
+
+</definitions>
