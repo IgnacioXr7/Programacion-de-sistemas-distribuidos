@@ -59,36 +59,54 @@ int main(int argc, char **argv){
 	unsigned int playerMove;			/** Player's move */
 	int resCode, gameId;				/** Result and gameId */
 	
-		// Init gSOAP environment
-		soap_init(&soap);
+	// Check arguments
+	if (argc !=2) {
+		printf("Usage: %s http://server:port\n",argv[0]);
+		exit(0);
+	}
+	
+	// Init gSOAP environment
+	soap_init(&soap);
 
-		// Obtain server address
-		serverURL = argv[1];
+	// Obtain server address
+	serverURL = argv[1];
 
-		// Allocate memory
-		allocClearMessage (&soap, &(playerName));
-		allocClearBlock (&soap, &gameStatus);
-				
-		// Check arguments
-		if (argc !=2) {
-			printf("Usage: %s http://server:port\n",argv[0]);
-			exit(0);
+	// Allocate memory
+	allocClearMessage (&soap, &(playerName)); //reserva memoria para mensaje
+	printf("Escribe el nombre del jugador: ");
+	fgets(playerName.msg, STRING_LENGTH - 1, stdin);
+	playerName.__size = strlen(playerName.msg);
+
+	//llamamos al servicio register
+	printf("Registrando el nombre en servidor...\n");
+	resCode = soap_call_blackJackns__register(&soap, argv[1], "", playerName, &gameId);
+
+	//mensaje dependiendo de la respuesta 
+	if(resCode == SOAP_OK){
+		if(gameId >= 0){
+			printf("Se ha registrado el jugador %s en el juego %d|n", playerName.msg, gameId);
 		}
+		else if(gameId == ERROR_NAME_REPEATED){
+			printf("No puede haber dos jugadores en una misma partida con el mismo nombre\n");
+		}
+		else if(gameId == ERROR_SERVER_FULL){
+			printf("El servidor esta lleno ahora mismo, pruebe mas tarde\n");
+		}
+		else{
+			printf("Codigo desconocido: %d\n", gameId);
+		}
+	}
+	else{
+		soap_print_fault(&soap, stderr);
+	}
 
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
+	allocClearBlock (&soap, &gameStatus);
+			
 	
 
+	// Clean the environment
+	soap_destroy(&soap);
+  	soap_end(&soap);
+  	soap_done(&soap);
   	return 0;
 }
