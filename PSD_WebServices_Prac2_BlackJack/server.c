@@ -122,21 +122,6 @@ void copyGameStatusStructure (blackJackns__tBlock* status, char* message, blackJ
 	status->code = newCode;	
 }
 
-// funciones aux mias
-void copyPlayerName(xsd__string *dest, blackJackns__tMessage playerName){
-	//liberar memoria anterior si existe
-    if (*dest != NULL) free(*dest);
-    
-    //reservar nueva memoria con espacio + '\0'
-    *dest = (xsd__string) malloc(playerName.__size + 1);
-    
-    //copiar y añadir '\0'
-    strncpy(*dest, playerName.msg, playerName.__size);
-    (*dest)[playerName.__size] = '\0';
-}
-
-//
-
 int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, int* result){
 	printf("Bienvenido! Vamos a jugar al BlackJack!\n");
 	// Set \0 at the end of the string
@@ -150,7 +135,8 @@ int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, 
 
 		if(games[i].status == gameEmpty){
 			//hemos encontrado un hueco, metemos al primer jugador
-			copyPlayerName(&games[i].player1Name, playerName);
+			strncpy(games[i].player1Name, playerName.msg, STRING_LENGTH - 1);
+    		games[i].player1Name[STRING_LENGTH - 1] = '\0';
 			games[i].status = gameWaitingPlayer;
 			games[i].endOfGame = FALSE;
 			pthread_mutex_unlock(&(games[i].gameMutex));
@@ -167,7 +153,8 @@ int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, 
 			}
 			else{
 				//entra el segundo jugador, empezamos partida, se reparten cartas
-				copyPlayerName(&games[i].player2Name, playerName);
+				strncpy(games[i].player2Name, playerName.msg, STRING_LENGTH - 1);
+    			games[i].player2Name[STRING_LENGTH - 1] = '\0';
 				games[i].status = gameReady;
 				initDeck(&games[i].gameDeck);
 				clearDeck(&games[i].player1Deck);
@@ -189,10 +176,12 @@ int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, 
 				return SOAP_OK;
 			}
 		}
+
+		pthread_mutex_unlock(&games[i].gameMutex);		
 	}
 
 	//si hemos llegado hasta aqui, es que no hemos encontradoni un hueco 
-	return ERROR_SERVER_FULL;
+	*result = ERROR_SERVER_FULL;
   	return SOAP_OK;
 }
 
@@ -229,6 +218,9 @@ int main(int argc, char **argv){
 
 	// Init environment
 	soap_init(&soap);
+
+	initServerStructures(&soap);
+
 	// Configure timeouts
 	soap.send_timeout = 60; // 60 seconds
 	soap.recv_timeout = 60; // 60 seconds

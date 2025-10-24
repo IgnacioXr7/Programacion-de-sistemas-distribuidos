@@ -17,7 +17,7 @@ A commercial use license is available from Genivia Inc., contact@genivia.com
 #endif
 #include "soapH.h"
 
-SOAP_SOURCE_STAMP("@(#) soapServer.c ver 2.8.133 2025-10-21 17:32:44 GMT")
+SOAP_SOURCE_STAMP("@(#) soapServer.c ver 2.8.133 2025-10-24 10:24:37 GMT")
 SOAP_FMAC5 int SOAP_FMAC6 soap_serve(struct soap *soap)
 {
 #ifndef WITH_FASTCGI
