@@ -272,14 +272,94 @@ int main(int argc, char **argv){
 	soap_done(&soap);
 	return 0;
 }
-//implmentacion de los servicios
+
+//funciones auxiliares para evitar repetir codigo innecesariamente
+
+void nameSafe(blackJackns__tMessage *playerName) {
+	//comprobaciones para no pasar de los limites del
+	//playerName->msg y agregar el '\0'
+	int size = playerName->__size;
+	if(size < 0) size = 0;
+	if(size >= STRING_LENGTH) size = STRING_LENGTH - 1;
+	playerName->msg[size] = 0;
+}
+
+int getPlayerIndex(int gameId, const char *name) {
+	//comprobaciones para no pasar de los limites del
+	if (gameId < 0 || gameId >= MAX_GAMES) return 0;                      /* índice fuera de rango */
+    if (strlen(games[gameId].player1Name) && strcmp(games[gameId].player1Name, name) == 0)
+        return player1;                                                         /* coincide con player1 */
+    if (strlen(games[gameId].player2Name) && strcmp(games[gameId].player2Name, name) == 0)
+        return player2;                                                         /* coincide con player2 */
+    return -1;
+}
+
+int StatusAndUnlock(tGame *g, blackJackns__tBlock *status, const char *msg, blackJackns__tDeck *deck, int code) {
+    //copia en status, desbloquea el mutex de la partida y devuelve SOAP_OK.
+    copyGameStatusStructure(status, (char *)msg, deck, code);  
+    pthread_mutex_unlock(&g->gameMutex);                       
+    return SOAP_OK;                                            
+}
+
+//implementacion de los servicios
 
 int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, int gameId, blackJackns__tBlock* status){
 
-	return SOAP_OK;
+	char message[STRING_LENGTH];
+	blackJackns__tDeck *playerDeck = NULL;        
+    blackJackns__tDeck *opponentDeck = NULL; 
+	int playerIndex = 0;
+	//Se reserva memoria para almacenar los datos necesarios
+	allocClearBlock(soap, status);
+	nameSafe(&playerName);
+	//se valida el gameID
+    if (gameId < 0 || gameId >= MAX_GAMES) {
+        copyGameStatusStructure(status, message, NULL, ERROR_PLAYER_NOT_FOUND);
+        return SOAP_OK;
+    }
+	pthread_mutex_lock(&games[gameId].gameMutex);
+
+	//comprobar si el jugador está registrado en esta partida
+    playerIndex = getPlayerIndex(gameId, playerName.msg);
+    if (playerIndex == -1) {
+        pthread_mutex_unlock(&games[gameId].gameMutex);
+        copyGameStatusStructure(status, message, NULL, ERROR_PLAYER_NOT_FOUND);
+        return SOAP_OK;
+    }
+	//Se optienen los mazos correspondientes
+	playerDeck = (playerIndex == 0) ? &games[gameId].player1Deck : &games[gameId].player2Deck;
+	opponentDeck = (playerIndex == 0) ? &games[gameId].player2Deck : &games[gameId].player1Deck;
+	
+	//verifica si empezo la partida
+	if (games[gameId].status != gameReady) {
+        return StatusAndUnlock(&games[gameId], status, message, myDeck, TURN_WAIT);
+    }
+
+	while (!games[gameId].endOfGame &&
+           ((playerIndex == 0 && games[gameId].currentPlayer != player1) ||
+            (playerIndex == 1 && games[gameId].currentPlayer != player2)))
+    {
+        //se esperamos a que el turno cambie 
+		//(se asume que el mutex fue bloqueado antes)
+        pthread_cond_wait(&games[gameId].turnCond, &games[gameId].gameMutex);
+    }
+	//una vez que ya se dejo de esperar
+	//puede haber terminado esta espera porque es su turno
+	//o termino la partida
+    if (games[gameId].endOfGame) {
+        /* la partida ha terminado: calculamos puntos y devolvemos GAME_WIN/GAME_LOSE */
+        unsigned int playerPoints  = calculatePoints(playerDeck);    /* puntos del solicitante */
+        unsigned int opponentPoints  = calculatePoints(opponentDeck);   /* puntos del rival */
+
+        if (playerPoints > 21) {
+            return respond_and_unlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
+        } 
+    }
 }
 
 int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName, int gameId, int action, blackJackns__tBlock* status){
+	char buffer[];
+
 
 
 	return SOAP_OK;
