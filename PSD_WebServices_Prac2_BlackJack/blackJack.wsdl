@@ -136,7 +136,7 @@
 </binding>
 
 <service name="blackJack">
-  <documentation>gSOAP 2.8.133 generated service definition</documentation>
+  <documentation>gSOAP 2.8.117 generated service definition</documentation>
   <port name="blackJack" binding="tns:blackJack">
     <SOAP:address location="http//localhost:10000"/>
   </port>

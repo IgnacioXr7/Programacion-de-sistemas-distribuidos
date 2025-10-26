@@ -135,8 +135,8 @@ int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, 
 
 		if(games[i].status == gameEmpty){
 			//hemos encontrado un hueco, metemos al primer jugador
-			strncpy(games[i].player1Name, playerName.msg, STRING_LENGTH - 1);
-    		games[i].player1Name[STRING_LENGTH - 1] = '\0';
+			strncpy(games[i].player1Name, playerName.msg, playerName.__size);
+    		games[i].player1Name[playerName.__size] = '\0';
 			games[i].status = gameWaitingPlayer;
 			games[i].endOfGame = FALSE;
 			pthread_mutex_unlock(&(games[i].gameMutex));
@@ -153,8 +153,8 @@ int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, 
 			}
 			else{
 				//entra el segundo jugador, empezamos partida, se reparten cartas
-				strncpy(games[i].player2Name, playerName.msg, STRING_LENGTH - 1);
-    			games[i].player2Name[STRING_LENGTH - 1] = '\0';
+				strncpy(games[i].player2Name, playerName.msg, playerName.__size);
+    			games[i].player2Name[playerName.__size] = '\0';
 				games[i].status = gameReady;
 				initDeck(&games[i].gameDeck);
 				clearDeck(&games[i].player1Deck);
