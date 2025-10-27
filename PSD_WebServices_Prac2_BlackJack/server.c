@@ -265,11 +265,14 @@ int main(int argc, char **argv){
 		}
 
 		// Create a new thread to process the request
-		pthread_create(&tid, NULL, (void*(*)(void*))processRequest, (void*)tsoap);
+		if(pthread_create(&tid, NULL, (void*(*)(void*))processRequest, (void*)tsoap) != 0) {
+			fprintf(stderr, "Error al crear el hilo\n");
+		}
 	}
 
 	// Detach SOAP environment
 	soap_done(&soap);
+	printf("Salida del servidor BlackJack...\n");
 	return 0;
 }
 
@@ -314,6 +317,7 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	nameSafe(&playerName);
 	//se valida el gameID
     if (gameId < 0 || gameId >= MAX_GAMES) {
+		snprintf(message, STRING_LENGTH, "ID de la partida invalido: %d.", gameId);
         copyGameStatusStructure(status, message, NULL, ERROR_PLAYER_NOT_FOUND);
         return SOAP_OK;
     }
@@ -322,6 +326,7 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	//comprobar si el jugador está registrado en esta partida
     playerIndex = getPlayerIndex(gameId, playerName.msg);
     if (playerIndex == -1) {
+		snprintf(message, STRING_LENGTH, "Jugador '%s' no registrado en la partida con ID: %d.", playerName.msg, gameId);
         pthread_mutex_unlock(&games[gameId].gameMutex);
         copyGameStatusStructure(status, message, NULL, ERROR_PLAYER_NOT_FOUND);
         return SOAP_OK;
@@ -332,7 +337,8 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	
 	//verifica si empezo la partida
 	if (games[gameId].status != gameReady) {
-        return StatusAndUnlock(&games[gameId], status, message, myDeck, TURN_WAIT);
+		snprintf(message, STRING_LENGTH, "Partida con ID %d: esperando al segundo jugador...", gameId);
+        return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_WAIT);
     }
 
 	while (!games[gameId].endOfGame &&
@@ -352,15 +358,33 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
         unsigned int opponentPoints  = calculatePoints(opponentDeck);   /* puntos del rival */
 
         if (playerPoints > 21) {
-            return respond_and_unlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
-        } 
+			snprintf(message, STRING_LENGTH, "Partida finalizada: te pasaste del limite (%u puntos).", playerPoints);
+            return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
+        } else if(opponentPoints > 21) {
+			snprintf(message, STRING_LENGTH, "Partida finalizada: tu rival se pasó del limite (%u puntos).", opponentPoints);
+			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
+		}
+		else if(playerPoints > opponentPoints) {
+			snprintf(message, STRING_LENGTH, "Partida finalizada: ganaste con (%u puntos) - rival (%u puntos)", playerPoints, opponentPoints);
+			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
+		}
+		else if(opponentPoints > playerPoints) {
+			snprintf(message, STRING_LENGTH, "Partida finalizada: perdiste con (%u puntos) - rival (%u puntos)", playerPoints, opponentPoints);
+			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
+		}
+		else {
+			//Caso de empate?
+			snprintf(message, STRING_LENGTH, "Partida finalizada con empate.");
+			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
+		}
     }
+	//turno del jugador actual (partida no terminada)
+	unsigned int puntos_actuales = calculatePoints(playerDeck);         
+	snprintf(message, STRING_LENGTH, "Es tu turno. Tienes %u puntos.", puntos_actuales); 
+	return respond_and_unlock(&games[gameId], status, message, playerDeck, TURN_PLAY);    
 }
 
 int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName, int gameId, int action, blackJackns__tBlock* status){
-	char buffer[];
-
-
-
+	//char buffer[];
 	return SOAP_OK;
 }
