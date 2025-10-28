@@ -102,11 +102,11 @@ int main(int argc, char **argv){
 
 	printf("Consultando estado...\n");
 
-    if (soap_call_blackJackns__getStatus(&soap, argv[1], NULL, playerName, gameId, &gameStatus) == SOAP_OK) {
+   /* if (soap_call_blackJackns__getStatus(&soap, argv[1], NULL, playerName, gameId, &gameStatus) == SOAP_OK) {
         printf("Mensaje del servidor: %s\n", gameStatus.msgStruct.msg);
     } else {
         soap_print_fault(&soap, stderr);
-    }
+    }*/
 
 
 	allocClearBlock (&soap, &gameStatus);

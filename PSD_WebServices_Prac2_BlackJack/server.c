@@ -381,7 +381,7 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	//turno del jugador actual (partida no terminada)
 	unsigned int puntos_actuales = calculatePoints(playerDeck);         
 	snprintf(message, STRING_LENGTH, "Es tu turno. Tienes %u puntos.", puntos_actuales); 
-	return respond_and_unlock(&games[gameId], status, message, playerDeck, TURN_PLAY);    
+	return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_PLAY);    
 }
 
 int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName, int gameId, int action, blackJackns__tBlock* status){

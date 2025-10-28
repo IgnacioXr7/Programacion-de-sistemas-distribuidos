@@ -123,5 +123,13 @@ unsigned int calculatePoints (blackJackns__tDeck *deck);
  */
 void copyGameStatusStructure (blackJackns__tBlock* status, char* message, blackJackns__tDeck *newDeck, int newCode);
 
+/*auxiliar functions
+
+*/
+void nameSafe(blackJackns__tMessage *playerName);
+
+int getPlayerIndex(int gameId, const char *name);
+
+int StatusAndUnlock(tGame *g, blackJackns__tBlock *status, const char *msg, blackJackns__tDeck *deck, int code);
 
 

@@ -14,7 +14,7 @@ client:
 	gcc $(SSL_FLAGS) -w -o client client.c soapC.c soapClient.c game.c -lgsoap $(SSL_LIBS) -L$(GSOAP_LIB) -I$(GSOAP_INCLUDE)
 
 server:	
-	gcc $(SSL_FLAGS) -w -o server server.c soapC.c soapServer.c game.c -lgsoap $(SSL_LIBS) -L$(GSOAP_LIB) -I$(GSOAP_INCLUDE) 
+	gcc $(SSL_FLAGS) -w -o server server.c soapC.c soapServer.c game.c -lgsoap $(SSL_LIBS) -L$(GSOAP_LIB) -I$(GSOAP_INCLUDE) -lpthread
 
 
 clean:	
