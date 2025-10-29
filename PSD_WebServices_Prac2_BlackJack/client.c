@@ -58,7 +58,8 @@ int main(int argc, char **argv){
 	blackJackns__tBlock gameStatus;		/** Game status */
 	unsigned int playerMove;			/** Player's move */
 	int resCode, gameId;				/** Result and gameId */
-	
+	int gameFinish = FALSE;
+
 	// Check arguments
 	if (argc !=2) {
 		printf("Usage: %s http://server:port\n",argv[0]);
@@ -75,6 +76,7 @@ int main(int argc, char **argv){
 	allocClearMessage (&soap, &(playerName)); //reserva memoria para mensaje
 	printf("Escribe el nombre del jugador: ");
 	fgets(playerName.msg, STRING_LENGTH - 1, stdin);
+	playerName.msg[strlen(playerName.msg) - 1 ] = '\0';
 	playerName.__size = strlen(playerName.msg);
 
 	//llamamos al servicio register
@@ -98,17 +100,98 @@ int main(int argc, char **argv){
 	}
 	else{
 		soap_print_fault(&soap, stderr);
+		soap_destroy(&soap);
+        soap_end(&soap);
+        soap_done(&soap);
+        return 1;
 	}
 
 	printf("Consultando estado...\n");
 
-   /* if (soap_call_blackJackns__getStatus(&soap, argv[1], NULL, playerName, gameId, &gameStatus) == SOAP_OK) {
+   if (soap_call_blackJackns__getStatus(&soap, argv[1], NULL, playerName, gameId, &gameStatus) == SOAP_OK) {
         printf("Mensaje del servidor: %s\n", gameStatus.msgStruct.msg);
     } else {
         soap_print_fault(&soap, stderr);
-    }*/
+    }
 
+	while(!gameFinish){
+		//bucle principal del cliente 
+		allocClearBlock(&soap, &gameStatus);
 
+		//primero miramos el estado de la partida
+		printf("Consultando estado...\n");
+		if (soap_call_blackJackns__getStatus(&soap, argv[1], NULL, playerName, gameId, &gameStatus) == SOAP_OK) {
+			printf("Mensaje del servidor: %s\n", gameStatus.msgStruct.msg);
+		} else {
+			soap_print_fault(&soap, stderr);
+			gameFinish = TRUE;
+			return 1;
+		}
+
+		switch(gameStatus.code){
+			case TURN_PLAY:
+				//Nos toca jugar - realizamos un movimiento
+				printf("TE TOCA!\n");
+
+				int turn = TRUE;
+				while(turn){
+					playerMove = readOption();
+
+					allocClearBlock(&soap, &gameStatus);
+
+					//llamamos a playerMove 
+					printf("Enviando movimiento al servidor..\n");
+
+					if(soap_call_blackJackns__playerMove(&soap, argv[1], NULL, playerName, gameId, playerMove, &gameStatus) == SOAP_OK){
+						printf("Movimiento\n");
+						printStatus(&gameStatus, TRUE);
+
+						if(gameStatus.code == GAME_WIN){
+							printf("Has ganado\n");
+							gameFinish = TRUE;
+							turn = FALSE;
+						}
+						else if(gameStatus.code == GAME_LOSE){
+							printf("Has perdido\n");
+							gameFinish = TRUE;
+							turn = FALSE;
+						}
+						else if(gameStatus.code == TURN_WAIT){
+							printf("Te has plantaado. Ahora le toca al rival\n");
+							turn = FALSE;
+						}
+						else if(gameStatus.code == TURN_PLAY){
+							printf("Has pedido una carta. Sigue siendo tu turno\n");
+							turn = TRUE;
+						}
+					}
+					else{
+						printf("ERROR al llamar a playerMove\n");
+						soap_print_fault(&soap, stderr);
+						turn = FALSE;
+						gameFinish = TRUE;
+					}
+				}
+				break;
+			case TURN_WAIT:
+				//NO te toca, esperamos
+				printf("Esperando al rival\n");
+				sleep(5); //esperar 5 segundos 
+				break;
+			case GAME_WIN:
+				printf("Has ganado\n");
+				gameFinish = TRUE;
+				break;
+			case GAME_LOSE:
+				printf("Has pedido\n");
+				gameFinish = TRUE;
+				break;
+			case ERROR_PLAYER_NOT_FOUND:
+				printf("ERROR: Este jugador no se ha encontrado en la partida\n");
+				gameFinish = TRUE;
+				break;
+		}
+	}
 	allocClearBlock (&soap, &gameStatus);
 			
 	
