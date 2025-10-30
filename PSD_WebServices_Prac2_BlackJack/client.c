@@ -127,6 +127,7 @@ int main(int argc, char **argv){
 			gameFinish = TRUE;
 			return 1;
 		}
+		printStatus(&gameStatus, TRUE);
 
 		switch(gameStatus.code){
 			case TURN_PLAY:
@@ -176,14 +177,17 @@ int main(int argc, char **argv){
 			case TURN_WAIT:
 				//NO te toca, esperamos
 				printf("Esperando al rival\n");
+				//printStatus(&gameStatus, TRUE);
 				sleep(5); //esperar 5 segundos 
 				break;
 			case GAME_WIN:
 				printf("Has ganado\n");
+				//printStatus(&gameStatus, TRUE);
 				gameFinish = TRUE;
 				break;
 			case GAME_LOSE:
 				printf("Has pedido\n");
+				//printStatus(&gameStatus, TRUE);
 				gameFinish = TRUE;
 				break;
 			case ERROR_PLAYER_NOT_FOUND:
