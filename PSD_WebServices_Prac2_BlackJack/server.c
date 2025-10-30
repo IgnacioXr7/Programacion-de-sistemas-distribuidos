@@ -369,36 +369,11 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	//una vez que ya se dejo de esperar
 	//puede haber terminado esta espera porque es su turno
 	//o termino la partida
-    if (games[gameId].endOfGame) {
-        /* la partida ha terminado: calculamos puntos y devolvemos GAME_WIN/GAME_LOSE */
-        unsigned int playerPoints  = calculatePoints(playerDeck);    /* puntos del solicitante */
-        unsigned int opponentPoints  = calculatePoints(opponentDeck);   /* puntos del rival */
-
-        if (playerPoints > 21) {
-			snprintf(message, STRING_LENGTH, "Partida finalizada: te pasaste del limite (%u puntos).", playerPoints);
-            return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
-        } else if(opponentPoints > 21) {
-			snprintf(message, STRING_LENGTH, "Partida finalizada: tu rival se pasó del limite (%u puntos).", opponentPoints);
-			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
-		}
-		else if(playerPoints > opponentPoints) {
-			snprintf(message, STRING_LENGTH, "Partida finalizada: ganaste con (%u puntos) - rival (%u puntos)", playerPoints, opponentPoints);
-			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
-		}
-		else if(opponentPoints > playerPoints) {
-			snprintf(message, STRING_LENGTH, "Partida finalizada: perdiste con (%u puntos) - rival (%u puntos)", playerPoints, opponentPoints);
-			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
-		}
-		else {
-			//Caso de empate?
-			snprintf(message, STRING_LENGTH, "Partida finalizada con empate.");
-			return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
-		}
-    }
 	//turno del jugador actual (partida no terminada)
-	unsigned int puntos_actuales = calculatePoints(playerDeck);         
-	snprintf(message, STRING_LENGTH, "Es tu turno. Tienes %u puntos.", puntos_actuales); 
-	return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_PLAY);    
+	unsigned int puntos_actuales = calculatePoints(playerDeck); 
+	unsigned int puntos_rivales = calculatePoints(opponentDeck);
+	snprintf(message, STRING_LENGTH, "Es tu turno.\n puntos del rival:  %u\n Tienes %u puntos.", puntos_rivales, puntos_actuales); 
+	return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_PLAY);
 }
 
 int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName, int gameId, int action, blackJackns__tBlock* status){
