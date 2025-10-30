@@ -194,8 +194,6 @@ int main(int argc, char **argv){
 	}
 	allocClearBlock (&soap, &gameStatus);
 			
-	
-
 	// Clean the environment
 	soap_destroy(&soap);
   	soap_end(&soap);

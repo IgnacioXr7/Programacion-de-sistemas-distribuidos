@@ -354,16 +354,21 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	
 	//verifica si empezo la partida
 	if (games[gameId].status != gameReady) {
-		snprintf(message, STRING_LENGTH, "Partida con ID %d: esperando al segundo jugador...", gameId);
+		snprintf(message, STRING_LENGTH, "Partida con ID %d: esperando al segundo jugador...\n", gameId);
         return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_WAIT);
     }
-
+	//wait ()
+	//desbloquea para informar al que esta esperando para informarle al otro jugador
+	//
+	//signal () 
 	while (!games[gameId].endOfGame &&
            ((playerIndex == player1 && games[gameId].currentPlayer != player1) ||
             (playerIndex == player2 && games[gameId].currentPlayer != player2)))
     {
         //se esperamos a que el turno cambie 
 		//(se asume que el mutex fue bloqueado antes)
+		snprintf(message, STRING_LENGTH, "Esperando al segundo jugador...");
+        StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_WAIT);
         pthread_cond_wait(&games[gameId].turnCond, &games[gameId].gameMutex);
     }
 	//una vez que ya se dejo de esperar
@@ -372,7 +377,7 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	//turno del jugador actual (partida no terminada)
 	unsigned int puntos_actuales = calculatePoints(playerDeck); 
 	unsigned int puntos_rivales = calculatePoints(opponentDeck);
-	snprintf(message, STRING_LENGTH, "Es tu turno.\n puntos del rival:  %u\n Tienes %u puntos.", puntos_rivales, puntos_actuales); 
+	snprintf(message, STRING_LENGTH, "Es tu turno.\n puntos del rival:  %u\n Tienes %u puntos.\n", puntos_rivales, puntos_actuales); 
 	return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_PLAY);
 }
 
@@ -385,7 +390,6 @@ int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName,
 	unsigned int rivalStack;
 	unsigned int bet = DEFAULT_BET;
 	char message[STRING_LENGTH];
-
 	if(DEBUG_SERVER){
 		printf("Estoy en __playerMove. El jugador %s quiere hacer la accion %d, en el %d partida\n", playerName.msg, action, gameId);
 	}
