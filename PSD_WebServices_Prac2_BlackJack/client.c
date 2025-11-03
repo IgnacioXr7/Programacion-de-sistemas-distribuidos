@@ -96,6 +96,10 @@ int main(int argc, char **argv){
 		}
 		else{
 			printf("Codigo desconocido: %d\n", gameId);
+			soap_print_fault(&soap, stderr);
+			soap_destroy(&soap);
+			soap_end(&soap);
+			soap_done(&soap);
 		}
 	}
 	else{
@@ -107,13 +111,6 @@ int main(int argc, char **argv){
 	}
 
 	printf("Consultando estado...\n");
-
-   if (soap_call_blackJackns__getStatus(&soap, argv[1], NULL, playerName, gameId, &gameStatus) == SOAP_OK) {
-        printf("Mensaje del servidor: %s\n", gameStatus.msgStruct.msg);
-    } else {
-        soap_print_fault(&soap, stderr);
-    }
-
 	while(!gameFinish){
 		//bucle principal del cliente 
 		allocClearBlock(&soap, &gameStatus);
@@ -125,8 +122,9 @@ int main(int argc, char **argv){
 		} else {
 			soap_print_fault(&soap, stderr);
 			gameFinish = TRUE;
-			return 1;
+			break;
 		}
+		
 		printStatus(&gameStatus, TRUE);
 
 		switch(gameStatus.code){
@@ -135,7 +133,7 @@ int main(int argc, char **argv){
 				printf("TE TOCA!\n");
 
 				int turn = TRUE;
-				while(turn){
+				while(turn && !gameFinish){
 					playerMove = readOption();
 
 					allocClearBlock(&soap, &gameStatus);
@@ -176,9 +174,7 @@ int main(int argc, char **argv){
 				break;
 			case TURN_WAIT:
 				//NO te toca, esperamos
-				printf("Esperando al rival\n");
-				//printStatus(&gameStatus, TRUE);
-				sleep(5); //esperar 5 segundos 
+				printf("Esperando al rival (vuelvo a llamar a getStatus y espero)...\n");
 				break;
 			case GAME_WIN:
 				printf("Has ganado\n");
@@ -186,17 +182,21 @@ int main(int argc, char **argv){
 				gameFinish = TRUE;
 				break;
 			case GAME_LOSE:
-				printf("Has pedido\n");
-				//printStatus(&gameStatus, TRUE);
+				printf("Has perdido (recibido desde getStatus)\n");
 				gameFinish = TRUE;
 				break;
+
 			case ERROR_PLAYER_NOT_FOUND:
 				printf("ERROR: Este jugador no se ha encontrado en la partida\n");
 				gameFinish = TRUE;
 				break;
+
+			default:
+				printf("Codigo desconocido recibido: %d\n", gameStatus.code);
+				break;
 		}
 	}
-	allocClearBlock (&soap, &gameStatus);
+	//allocClearBlock (&soap, &gameStatus);
 			
 	// Clean the environment
 	soap_destroy(&soap);
