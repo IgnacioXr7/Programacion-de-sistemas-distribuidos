@@ -44,12 +44,14 @@ typedef struct game{
 	blackJackns__tDeck player1Deck;			/** Player1's deck */
 	unsigned int player1Bet;				/** Player1's bet */
 	unsigned int player1Stack;				/** Player1's stack */
-		
+	int player1Stood;
+
 	xsd__string player2Name;				/** Name of player 2 */	
 	blackJackns__tDeck player2Deck;			/** Player2's deck */
 	unsigned int player2Bet;				/** Player2's bet */
 	unsigned int player2Stack;				/** Player2's stack */
-	
+	int player2Stood;
+
 	blackJackns__tDeck gameDeck;			/** Main deck */
 	int endOfGame;							/** Flag to control the end of the game */
 	tGameState status;						/** Flag to indicate the status of this game */

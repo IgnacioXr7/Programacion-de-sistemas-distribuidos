@@ -19,10 +19,13 @@ void initGame (tGame *game){
 	game->player2Bet = 0;
 	game->player1Stack = INITIAL_STACK;
 	game->player2Stack = INITIAL_STACK;
+	game->player1Stood = FALSE;
+	game->player2Stood = FALSE;
 	
 	// Game status variables
 	game->endOfGame = FALSE;
 	game->status = gameEmpty;
+	
 
 	//mutex y variable de condicion
 	pthread_mutex_init(&game->gameMutex, NULL); //funcion espera la dir de memoria 
@@ -140,13 +143,13 @@ void resetRound(tGame *game) {
 	// choose first player randomly
 	game->currentPlayer = (rand() % 2 == 0) ? player1 : player2;
 	game->endOfGame = FALSE;
+	game->player1Stood = FALSE;
+	game->player2Stood = FALSE;
 }
 
 
 int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, int* result){
-	printf("Bienvenido! Vamos a jugar al BlackJack!\n");
 	nameSafe(&playerName);
-
 	if (DEBUG_SERVER)
 		printf ("[Register] Registering new player -> [%s]\n", playerName.msg);
 	
@@ -155,24 +158,32 @@ int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, 
 
 		if(games[i].status == gameEmpty){
 			//SI HUBO UNA PARTIDA ANTES AQUI, LIMPIAMOS ANTES DE EMPEZAR OTRA PARTIDA 
-			if(games[i].endOfGame == TRUE){
-				memset (games[i].player1Name, 0, STRING_LENGTH);	
-				memset (games[i].player2Name, 0, STRING_LENGTH);
-				clearDeck(&games[i].player1Deck);
-				clearDeck(&games[i].player2Deck);
-				initDeck(&games[i].gameDeck);
-				games[i].player1Bet = 0;
-				games[i].player2Bet = 0;
-				games[i].player1Stack = INITIAL_STACK;
-				games[i].player2Stack = INITIAL_STACK;
-				games[i].endOfGame = FALSE;
-			}
-
+			memset (games[i].player1Name, 0, STRING_LENGTH);	
+			memset (games[i].player2Name, 0, STRING_LENGTH);
+			clearDeck(&games[i].player1Deck);
+			clearDeck(&games[i].player2Deck);
+			initDeck(&games[i].gameDeck);
+			games[i].player1Bet = 0;
+			games[i].player2Bet = 0;
+			games[i].player1Stack = INITIAL_STACK;
+			games[i].player2Stack = INITIAL_STACK;
+			games[i].endOfGame = FALSE;
+			
 			//hemos encontrado un hueco, metemos al primer jugador
 			strncpy(games[i].player1Name, playerName.msg, playerName.__size);
     		games[i].player1Name[playerName.__size] = '\0';
 			games[i].status = gameWaitingPlayer;
-			games[i].endOfGame = FALSE;
+			
+			if(DEBUG_SERVER) {
+				printf("[Register] Player1 '%s' waiting for Player2 in game %d\n", playerName.msg, i);
+			}
+
+			// El jugador 1 espera a que entre el jugador 2
+            pthread_cond_wait(&games[i].turnCond, &games[i].gameMutex);
+
+			if (DEBUG_SERVER)
+                printf("[Register] Player1 '%s' reactivated (blackJackgame %d ready)\n", playerName.msg, i);
+			
 			pthread_mutex_unlock(&(games[i].gameMutex));
 			*result = i;
 			return SOAP_OK;
@@ -181,26 +192,31 @@ int blackJackns__register (struct soap *soap, blackJackns__tMessage playerName, 
 			//hemos encontrado una partida que espera al jugador 2
 			if(strcmp(games[i].player1Name, playerName.msg) == 0){
 				//nombre repetido en la misma partida
+				if (DEBUG_SERVER)
+                    printf("[Register] Error: name '%s' repeated in blackJack game %d\n", playerName.msg, i);
 				pthread_mutex_unlock(&games[i].gameMutex);
 				*result = ERROR_NAME_REPEATED;
 				return SOAP_OK;
 			}
-			else{
-				//entra el segundo jugador, empezamos partida, se reparten cartas
-				strncpy(games[i].player2Name, playerName.msg, playerName.__size);
-    			games[i].player2Name[playerName.__size] = '\0';
-				games[i].status = gameReady;
-				resetRound(&games[i]);
-				pthread_cond_broadcast(&games[i].turnCond);
-				pthread_mutex_unlock(&games[i].gameMutex);
-				*result = i;
-				return SOAP_OK;
-			}
+
+			strncpy(games[i].player2Name, playerName.msg, playerName.__size);
+			games[i].player2Name[playerName.__size] = '\0';
+			games[i].status = gameReady;
+
+			//Se reparten cartas y se elige el turno inicial aleatoriamente
+			resetRound(&games[i]);
+			if (DEBUG_SERVER)
+                printf("[Register] Player2 '%s' joined game %d. Game ready!\n", playerName.msg, i);
+			//Una vez registrado el segundo jugador, 
+			//se despierta al primer jugador que estaba esperando
+			pthread_cond_signal(&games[i].turnCond);
+			pthread_mutex_unlock(&games[i].gameMutex);
+			*result = i;
+			return SOAP_OK;
 		}
 
 		pthread_mutex_unlock(&games[i].gameMutex);		
 	}
-
 	//si hemos llegado hasta aqui, es que no hemos encontradoni un hueco 
 	*result = ERROR_SERVER_FULL;
   	return SOAP_OK;
@@ -210,7 +226,7 @@ void *processRequest(void *soap){
 
 	pthread_detach(pthread_self());
 
-	printf ("Processing a new request...");
+	//printf ("Processing a new request...\n");
 
 	soap_serve((struct soap*)soap);
 	soap_destroy((struct soap*)soap);
@@ -362,12 +378,6 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
         pthread_cond_wait(&games[gameId].turnCond, &games[gameId].gameMutex);
     }
 
-    // Si terminó la partida mientras esperábamos, devolvemos estado final
-    if (games[gameId].endOfGame) {
-        snprintf(message, STRING_LENGTH, "Partida terminada o cancelada.");
-        return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE); 
-    }
-
     // Ahora la partida ha empezado; si no es tu turno, esperar hasta que lo sea
     while (!games[gameId].endOfGame &&
            ((playerIndex == player1 && games[gameId].currentPlayer != player1) ||
@@ -375,10 +385,23 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
         pthread_cond_wait(&games[gameId].turnCond, &games[gameId].gameMutex);
     }
 
-    //Ya es tu turno o la partida ha terminado
+        // Si terminó la partida mientras esperábamos, devolvemos estado final
     if (games[gameId].endOfGame) {
-        snprintf(message, STRING_LENGTH, "Partida finalizada.");
-        return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
+        snprintf(message, STRING_LENGTH, "Partida terminada");
+		if (DEBUG_SERVER)
+			printf("Partida %u finalizada\n", gameId);
+        // Decide si el jugador que consulta ha ganado o perdido según stacks
+        if (playerIndex == player1) {
+            if (games[gameId].player1Stack == 0)
+                return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
+            else
+                return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
+        } else { // player2
+            if (games[gameId].player2Stack == 0)
+                return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_LOSE);
+            else
+                return StatusAndUnlock(&games[gameId], status, message, playerDeck, GAME_WIN);
+        }
     }
 
 	//una vez que ya se dejo de esperar
@@ -387,7 +410,7 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	//turno del jugador actual (partida no terminada)
 	unsigned int puntos_actuales = calculatePoints(playerDeck); 
 	unsigned int puntos_rivales = calculatePoints(opponentDeck);
-	snprintf(message, STRING_LENGTH, "Es tu turno.\n puntos del rival:  %u\n Tienes %u puntos.\n", puntos_rivales, puntos_actuales); 
+	snprintf(message, STRING_LENGTH, "Es tu turno.\n Puntos del rival:  %u\nTienes %u puntos.\n", puntos_rivales, puntos_actuales); 
 	return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_PLAY);
 }
 
@@ -477,9 +500,9 @@ int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName,
 			}
 
 			if(DEBUG_SERVER){
-				printf("Ajustamos los stacks: Player = %d Rival = %d\n", *playerStack, *rivalStack);
+				printf("Ajustamos los stacks: Current player = %d Rival = %d\n", *playerStack, *rivalStack);
 			}
-			if(playerStack == 0){
+			if(*playerStack == 0){
 				games[gameId].endOfGame = TRUE;
 				games[gameId].status = gameEmpty;
 				snprintf(message, STRING_LENGTH, "Tu stack ha llegado a 0. Has perdido la partida\n");
@@ -511,104 +534,79 @@ int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName,
 	}
 	else if(action == PLAYER_STAND){
 		//ACCION: PLANTARSE 
-		if(DEBUG_SERVER){
-			printf("Estoy en __playerMode. El jugador %s se planta\n", playerName.msg);
-		}
+	
+		if(isPlaying == player1) 
+			games[gameId].player1Stood = TRUE;
+		else 
+			games[gameId].player2Stood = TRUE;
 
 		unsigned int playerPoints = calculatePoints(playerDeck);
 		unsigned int rivalPoints = calculatePoints(rivalDeck);
-
-		if(DEBUG_SERVER){
-			printf("Estoy en __playerMove. Estos son los puntos: Player = %d Rival = %d\n", playerPoints, rivalPoints);
+			if(DEBUG_SERVER){
+			printf("Estoy en __playerMode. El jugador %s se planta con %u\n", playerName.msg, playerPoints);
 		}
 		//NO me he pasado de 21
-		if(playerPoints > rivalPoints){
-			*playerStack += bet;
-            *rivalStack = (*rivalStack >= bet) ? (*rivalStack - bet) : 0;
+		if (games[gameId].player2Stood && games[gameId].player1Stood) {
 
-			if(DEBUG_SERVER){
-				printf("Estoy en __playerMove. El jugador %s esta mas cerca de 21 con %d puntos.\n", playerName.msg, playerPoints);
+				if (DEBUG_SERVER)
+				printf("Ambos jugadores plantados: resolviendo ronda...\n");
+			// Comparar los puntos finales
+			if (playerPoints > rivalPoints) {
+				*playerStack += bet;
+				*rivalStack = (*rivalStack >= bet) ? (*rivalStack - bet) : 0;
+				snprintf(message, STRING_LENGTH,
+						"Has ganado esta ronda con %u puntos. Stack actual: %u\n",
+						playerPoints, *playerStack);
+			}
+			else if (playerPoints < rivalPoints) {
+				*playerStack = (*playerStack >= bet) ? (*playerStack - bet) : 0;
+				*rivalStack += bet;
+				snprintf(message, STRING_LENGTH,
+						"Has perdido esta ronda con %u puntos. Stack actual: %u\n",
+						playerPoints, *playerStack);
+			}
+			else {
+				snprintf(message, STRING_LENGTH,
+						"Empate con %u puntos. Stack sin cambios (%u)\n",
+						playerPoints, *playerStack);
+				printf("Empate entre ambos jugadores: Stack (Jugador actual): %u | Stack (jugador rival): %u \n", *playerStack, *rivalStack);
 			}
 
-			if(DEBUG_SERVER){
-				printf("Ajustamos los stacks: Player = %d Rival = %d\n", *playerStack, *rivalStack);
-			}
-
-			
-			if(rivalStack == 0){
+			// Comprobar stacks → fin de partida
+			if (*playerStack == 0) {
 				games[gameId].endOfGame = TRUE;
 				games[gameId].status = gameEmpty;
-				snprintf(message, STRING_LENGTH, "El stack del rival ha llegado a 0. Has ganado la partida\n");
-				copyGameStatusStructure(status, message, playerDeck, GAME_WIN);
-
-				//desbloquear el rival que estaba esperando
-				//despierta en getStatus()
-				pthread_cond_broadcast(&games[gameId].turnCond);
-				pthread_mutex_unlock(&games[gameId].gameMutex);
-				return SOAP_OK;
-			}
-			snprintf(message, STRING_LENGTH, "Has ganado con %d puntos! Tu stack ahora es de %d. Nueva ronda..\n", playerPoints, *playerStack);
-			
-			resetRound(&games[gameId]);
-			copyGameStatusStructure(status, message, playerDeck, TURN_WAIT);
-
-			//desbloquear el rival que estaba esperando
-			//despierta en getStatus()
-			pthread_cond_broadcast(&games[gameId].turnCond);
-			pthread_mutex_unlock(&games[gameId].gameMutex);
-			return SOAP_OK;
-		}
-		else{
-			//rival tiene mas puntos que yo
-			//rivalPoints > playerpoints
-			*playerStack = (*playerStack >= bet) ? (*playerStack - bet) : 0;
-            *rivalStack += bet;
-			if(DEBUG_SERVER){
-				printf("Estoy en __playerMove. El jugador %s esta mas cerca de 21 con %d puntos.\n", playerName.msg, playerPoints);
-			}
-			
-			if(DEBUG_SERVER){
-				printf("Ajustamos los stacks: Player = %d Rival = %d\n", *playerStack, *rivalStack);
-			}
-
-			if(playerStack == 0){
-				games[gameId].endOfGame = TRUE;
-				games[gameId].status = gameEmpty;
-				snprintf(message, STRING_LENGTH, "Tu stack ha llegado a 0. Has perdido la partida\n");
+				snprintf(message + strlen(message),
+						STRING_LENGTH - strlen(message),
+						"Tu stack ha llegado a 0. Has perdido la partida.\n");
 				copyGameStatusStructure(status, message, playerDeck, GAME_LOSE);
 
-				//desbloquear el rival que estaba esperando
-				//despierta en getStatus()
-				pthread_cond_broadcast(&games[gameId].turnCond);
-				pthread_mutex_unlock(&games[gameId].gameMutex);
-				return SOAP_OK;
 			}
-			snprintf(message, STRING_LENGTH, "Has perdido con %d puntos! Tu stack ahora es de %d. Nueva ronda..\n", playerPoints, *playerStack);
-			
-			resetRound(&games[gameId]);
-
-			copyGameStatusStructure(status, message, playerDeck, TURN_WAIT);
-
-			//desbloquear el rival que estaba esperando
-			//despierta en getStatus()
+			else if (*rivalStack == 0) {
+				games[gameId].endOfGame = TRUE;
+				games[gameId].status = gameEmpty;
+				snprintf(message, STRING_LENGTH,
+						"El rival se ha quedado sin stack. ¡Has ganado la partida!\n");
+				copyGameStatusStructure(status, message, playerDeck, GAME_WIN);
+			}
+			else {
+				// Reiniciar la ronda
+				resetRound(&games[gameId]);
+				copyGameStatusStructure(status, message, playerDeck, TURN_WAIT);
+			}
 			pthread_cond_broadcast(&games[gameId].turnCond);
 			pthread_mutex_unlock(&games[gameId].gameMutex);
 			return SOAP_OK;
-
 		}
+
+		// Si el rival no se ha plantado todavía → pasar el turno
 		games[gameId].currentPlayer = calculateNextPlayer(currentPlayer);
-		if(DEBUG_SERVER){
-			printf("Estoy en __playerMove. El turno pasa al jugador %s\n", games[gameId].currentPlayer);
-		}
-
-		snprintf(message, STRING_LENGTH, "Te plantas con %d puntos. Stack: %d\n", playerPoints, *playerStack);
+		snprintf(message, STRING_LENGTH,
+				"Te plantas con %u puntos. Turno del rival.\n", playerPoints);
 		copyGameStatusStructure(status, message, playerDeck, TURN_WAIT);
 
-		//despertar al rival que esta bloqueado en getStatus()
 		pthread_cond_signal(&games[gameId].turnCond);
 		pthread_mutex_unlock(&games[gameId].gameMutex);
 		return SOAP_OK;
 	}
-
-	return SOAP_OK;
 }

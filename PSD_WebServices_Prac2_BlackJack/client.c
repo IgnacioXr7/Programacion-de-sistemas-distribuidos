@@ -74,51 +74,32 @@ int main(int argc, char **argv){
 
 	// Allocate memory
 	allocClearMessage (&soap, &(playerName)); //reserva memoria para mensaje
-	printf("Escribe el nombre del jugador: ");
-	fgets(playerName.msg, STRING_LENGTH - 1, stdin);
-	playerName.msg[strlen(playerName.msg) - 1 ] = '\0';
-	playerName.__size = strlen(playerName.msg);
+		// Bucle de registro hasta que sea exitoso
+	do {
+		printf("Introduce tu nombre: ");
+		fgets(playerName.msg, STRING_LENGTH - 1, stdin);
+		playerName.__size = strlen(playerName.msg);
+		playerName.msg[playerName.__size - 1] = '\0'; // eliminar salto de línea
 
-	//llamamos al servicio register
-	printf("Registrando el nombre en servidor...\n");
-	resCode = soap_call_blackJackns__register(&soap, argv[1], "", playerName, &gameId);
+		printf("Registrando el nombre en servidor...\n");
+		resCode = soap_call_blackJackns__register(&soap, serverURL, "", playerName, &gameId);
 
-	//mensaje dependiendo de la respuesta 
-	if(resCode == SOAP_OK){
-		if(gameId >= 0){
-			printf("Se ha registrado el jugador %s en el juego %d|n", playerName.msg, gameId);
-		}
-		else if(gameId == ERROR_NAME_REPEATED){
-			printf("No puede haber dos jugadores en una misma partida con el mismo nombre\n");
-		}
-		else if(gameId == ERROR_SERVER_FULL){
-			printf("El servidor esta lleno ahora mismo, pruebe mas tarde\n");
-		}
-		else{
-			printf("Codigo desconocido: %d\n", gameId);
-			soap_print_fault(&soap, stderr);
-			soap_destroy(&soap);
-			soap_end(&soap);
-			soap_done(&soap);
-		}
-	}
-	else{
-		soap_print_fault(&soap, stderr);
-		soap_destroy(&soap);
-        soap_end(&soap);
-        soap_done(&soap);
-        return 1;
-	}
-
-	printf("Consultando estado...\n");
+		// Interpretar el código devuelto por el servidor
+		if (gameId == ERROR_SERVER_FULL) {
+			printf("Servidor lleno. Por favor, espere o intente más tarde.\n");
+		} 
+		else if (gameId == ERROR_NAME_REPEATED) {
+			printf("Nombre ya usado. Elija otro nombre.\n");
+		} 
+	} while (gameId == ERROR_SERVER_FULL || gameId == ERROR_NAME_REPEATED);
+	printf("Se ha registrado el jugador %s en el juego %d\n", playerName.msg, gameId);
+	printf("Bienvenido %s\n", playerName.msg);
 	while(!gameFinish){
 		//bucle principal del cliente 
 		allocClearBlock(&soap, &gameStatus);
 
-		//primero miramos el estado de la partida
-		printf("Consultando estado...\n");
 		if (soap_call_blackJackns__getStatus(&soap, argv[1], NULL, playerName, gameId, &gameStatus) == SOAP_OK) {
-			printf("Mensaje del servidor: %s\n", gameStatus.msgStruct.msg);
+			printf("%s\n", gameStatus.msgStruct.msg);
 		} else {
 			soap_print_fault(&soap, stderr);
 			gameFinish = TRUE;
@@ -127,80 +108,42 @@ int main(int argc, char **argv){
 		
 		printStatus(&gameStatus, TRUE);
 
-		switch(gameStatus.code){
-			case TURN_PLAY:
-				//Nos toca jugar - realizamos un movimiento
-				printf("TE TOCA!\n");
+        switch (gameStatus.code) {
+            case TURN_PLAY:
+                do {
+                    playerMove = readOption();
+                    if (soap_call_blackJackns__playerMove(&soap, serverURL, "", playerName, gameId, playerMove, &gameStatus) != SOAP_OK) {
+                        soap_print_fault(&soap, stderr);
+                        gameFinish = TRUE;
+                        break;
+                    }
+                    printStatus(&gameStatus, TRUE);
+                } while (gameStatus.code == TURN_PLAY);
+                break;
 
-				int turn = TRUE;
-				while(turn && !gameFinish){
-					playerMove = readOption();
+            case TURN_WAIT:
+                printf("Esperando al rival...\n");
+                break;
 
-					allocClearBlock(&soap, &gameStatus);
+            case GAME_WIN:
+                printf("¡Has ganado!\n");
+                gameFinish = TRUE;
+                break;
 
-					//llamamos a playerMove 
-					printf("Enviando movimiento al servidor..\n");
+            case GAME_LOSE:
+                printf("Has perdido.\n");
+                gameFinish = TRUE;
+                break;
 
-					if(soap_call_blackJackns__playerMove(&soap, argv[1], NULL, playerName, gameId, playerMove, &gameStatus) == SOAP_OK){
-						printf("Movimiento\n");
-						printStatus(&gameStatus, TRUE);
+            default:
+                printf("Código desconocido: %d\n", gameStatus.code);
+                gameFinish = TRUE;
+                break;
+        }
+    }
 
-						if(gameStatus.code == GAME_WIN){
-							printf("Has ganado\n");
-							gameFinish = TRUE;
-							turn = FALSE;
-						}
-						else if(gameStatus.code == GAME_LOSE){
-							printf("Has perdido\n");
-							gameFinish = TRUE;
-							turn = FALSE;
-						}
-						else if(gameStatus.code == TURN_WAIT){
-							printf("Te has plantaado. Ahora le toca al rival\n");
-							turn = FALSE;
-						}
-						else if(gameStatus.code == TURN_PLAY){
-							printf("Has pedido una carta. Sigue siendo tu turno\n");
-							turn = TRUE;
-						}
-					}
-					else{
-						printf("ERROR al llamar a playerMove\n");
-						soap_print_fault(&soap, stderr);
-						turn = FALSE;
-						gameFinish = TRUE;
-					}
-				}
-				break;
-			case TURN_WAIT:
-				//NO te toca, esperamos
-				printf("Esperando al rival (vuelvo a llamar a getStatus y espero)...\n");
-				break;
-			case GAME_WIN:
-				printf("Has ganado\n");
-				//printStatus(&gameStatus, TRUE);
-				gameFinish = TRUE;
-				break;
-			case GAME_LOSE:
-				printf("Has perdido (recibido desde getStatus)\n");
-				gameFinish = TRUE;
-				break;
-
-			case ERROR_PLAYER_NOT_FOUND:
-				printf("ERROR: Este jugador no se ha encontrado en la partida\n");
-				gameFinish = TRUE;
-				break;
-
-			default:
-				printf("Codigo desconocido recibido: %d\n", gameStatus.code);
-				break;
-		}
-	}
-	//allocClearBlock (&soap, &gameStatus);
-			
-	// Clean the environment
-	soap_destroy(&soap);
-  	soap_end(&soap);
-  	soap_done(&soap);
-  	return 0;
+    soap_destroy(&soap);
+    soap_end(&soap);
+    soap_done(&soap);
+    return 0;
 }
