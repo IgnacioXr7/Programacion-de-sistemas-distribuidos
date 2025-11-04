@@ -379,7 +379,7 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
     }
 
     // Ahora la partida ha empezado; si no es tu turno, esperar hasta que lo sea
-    while (!games[gameId].endOfGame &&
+    if (!games[gameId].endOfGame &&
            ((playerIndex == player1 && games[gameId].currentPlayer != player1) ||
             (playerIndex == player2 && games[gameId].currentPlayer != player2))) {
         pthread_cond_wait(&games[gameId].turnCond, &games[gameId].gameMutex);
@@ -410,8 +410,15 @@ int blackJackns__getStatus(struct soap *soap, blackJackns__tMessage playerName, 
 	//turno del jugador actual (partida no terminada)
 	unsigned int puntos_actuales = calculatePoints(playerDeck); 
 	unsigned int puntos_rivales = calculatePoints(opponentDeck);
-	snprintf(message, STRING_LENGTH, "Es tu turno.\n Puntos del rival:  %u\nTienes %u puntos.\n", puntos_rivales, puntos_actuales); 
-	return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_PLAY);
+	if(((playerIndex == player1 && games[gameId].currentPlayer == player1) ||
+            (playerIndex == player2 && games[gameId].currentPlayer == player2))) {
+		snprintf(message, STRING_LENGTH, "Es tu turno.\nPuntos del rival:  %u\nTienes %u puntos.\n", puntos_rivales, puntos_actuales);  
+		return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_PLAY);
+	}
+	else {
+		snprintf(message, STRING_LENGTH, "Puntos del rival:  %u\nTienes %u puntos.\n", puntos_rivales, puntos_actuales);  
+		return StatusAndUnlock(&games[gameId], status, message, playerDeck, TURN_WAIT);
+	}
 }
 
 int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName, int gameId, int action, blackJackns__tBlock* status){
@@ -528,6 +535,7 @@ int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName,
 
 		//no se paso de 21. puede pedir mas cartas 
 		snprintf(message, STRING_LENGTH, "Carta recibida. Tus puntos ahora son %d\n", playerPoints);
+		pthread_cond_signal((&games[gameId].turnCond));
 		copyGameStatusStructure(status, message, playerDeck, TURN_PLAY);
 		pthread_mutex_unlock(&games[gameId].gameMutex);
 		return SOAP_OK;
@@ -597,7 +605,7 @@ int blackJackns__playerMove(struct soap *soap, blackJackns__tMessage playerName,
 			pthread_cond_broadcast(&games[gameId].turnCond);
 			pthread_mutex_unlock(&games[gameId].gameMutex);
 			return SOAP_OK;
-		}
+		} 
 
 		// Si el rival no se ha plantado todavía → pasar el turno
 		games[gameId].currentPlayer = calculateNextPlayer(currentPlayer);
