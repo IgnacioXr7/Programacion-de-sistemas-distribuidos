@@ -20,11 +20,11 @@ int main(int argc, char** argv){
 	char* sourceFileName;							/** Name of input image file */
 	char* destinationFileName;						/** Name of output image file */
 	int inputFile, outputFile;						/** File descriptors */
-	unsigned char *outputBuffer;					/** Output buffer for filtered pixels */
-	unsigned char *inputBuffer;						/** Input buffer to allocate original pixels */
-	unsigned char *auxPtr;							/** Auxiliary pointer */
-	unsigned int rowSize;							/** Number of pixels per row */
-	unsigned int rowsPerProcess;					/** Number of rows to be processed (at most) by each worker */
+	unsigned char *outputBuffer;					/** BUFFER PARA PIXELES FILTRADOS */
+	unsigned char *inputBuffer;						/** BUFFER PARA PIXELES ORIGINALES */
+	unsigned char *auxPtr;							/** PUNTERO AUXILIAR PARA MOVERME POR EL BUFFER */
+	unsigned int rowSize;							/** BYTER POR FILA (INCLUYE PADDING BMP) */
+	unsigned int rowsPerProcess;					/** FILAS QUE PROCESA CADA WORKER */
 	unsigned int rowsSentToWorker;					/** Number of rows to be sent to a worker process */
 	unsigned int threshold;							/** Threshold */
 	unsigned int currentRow;						/** Current row being processed */
@@ -36,9 +36,9 @@ int main(int argc, char** argv){
 	unsigned int numPixels;							/** Number of neighbour pixels (including current pixel) */
 	unsigned int currentWorker;						/** Current worker process */
 	tPixelVector vector;							/** Vector of neighbour pixels */
-	int imageDimensions[2];							/** Dimensions of input image */
+	int imageDimensions[2];							/** [0] = rowSize [1] = height */
 	double timeStart, timeEnd;						/** Time stamps to calculate the filtering time */
-	int size, rank, tag;							/** Number of process, rank and tag */
+	int size, rank, tag;							/** NUMERO DE PROCESOS QUE PASAMOS POR ARGV, rank and tag */
 	MPI_Status status;								/** Status information for received messages */
 
 
@@ -75,7 +75,7 @@ int main(int argc, char** argv){
 		threshold = atoi(argv[3]);
 
 
-		// Master process
+		// MASTER process
 		if (rank == 0){
 
 			// Process starts
@@ -119,12 +119,111 @@ int main(int argc, char** argv){
 			read (inputFile, outputBuffer, imgFileHeaderInput.bfOffBits-BIMAP_HEADERS_SIZE);
 			write (outputFile, outputBuffer, imgFileHeaderInput.bfOffBits-BIMAP_HEADERS_SIZE);
 
+			//IMPORTANTE - la altura puede ser negativa 
+			unsigned int imagenHeight = abs(imgInfoHeaderInput.biHeight);
+
+			//send imagen dimensions to workers 
+			imageDimensions[0] = rowSize;
+			imageDimensions[1] = imagenHeight;
+			MPI_Bcast(imageDimensions, 2, MPI_INT, 0, MPI_COMM_WORLD);
+			if(SHOW_LOG_MESSAGES){
+				printf("Proceso master ha hecho BROADCAST las dimensiones de la imagen a los workers: %d , %d\n", imageDimensions[0], imageDimensions[1]);
+			}
+
+			//malloc para los buffers (row * col de la imagen)
+			unsigned int totalBytes = imagenHeight * rowSize;
+			inputBuffer = (unsigned char*) malloc(totalBytes * sizeof(unsigned char));
+			outputBuffer = (unsigned char*) malloc(totalBytes * sizeof(unsigned char));
+
+			if(inputBuffer == NULL || outputBuffer == NULL){
+				printf("ERROR: No se ha hecho bien el malloc()\n");
+				MPI_Finalize();
+				exit(1);
+			}
+
+			//calculamos las filas que procesa cada worker
+			rowsPerProcess = imagenHeight / (size - 1);
+			unsigned int resto = imagenHeight % (size - 1);
 			
+			if(SHOW_LOG_MESSAGES){
+				printf("%d workers van a procesas %d filas cada uno\n", size - 1, rowsPerProcess);
+				if(resto > 0){
+					printf("%d extra filas\n", resto);
+				}
+			}
 			
-			
-			
-			
-			
+			//leer la imagen SIN LA CABECERA, inicio de los pixeles
+			lseek(inputFile, imgFileHeaderInput.bfOffBits, SEEK_SET);
+			readBytes = read(inputFile, inputBuffer, totalBytes);
+
+			if(SHOW_LOG_MESSAGES){
+				printf("Se han leido %d bytes de la imagen. Se esperaban: %d\n", readBytes, totalBytes);
+				if(readBytes != totalBytes){
+					printf("Los bytes leidos NO son iguales a los esperados\n");
+				}
+			}
+
+			//ENVIAMOS DATOS A LOS WORKERS 
+			auxPtr = inputBuffer; //puntero al inicio de buffer de entrada
+			currentRow = 0;
+
+			for(currentRow = 1; currentRow < size; currentRow++){
+				rowsSentToWorker = rowsPerProcess;
+
+				if(currentWorker <= resto){
+					rowsSentToWorker++;
+				}
+
+				totalBytes = rowsSentToWorker * rowSize;
+
+				if(SHOW_LOG_MESSAGES){
+					printf("Enviando %d filas (%d bytes) al worker %d (filas %d - %d)\n", 
+						rowsSentToWorker, totalBytes, currentWorker, currentRow, currentRow + rowsSentToWorker - 1);
+				}
+
+				//ENVIAR
+				MPI_Send(&rowsSentToWorker, 1, MPI_UNSIGNED, currentWorker, tag, MPI_COMM_WORLD);//tag??????????????????
+
+				auxPtr += totalBytes;
+				currentRow += rowsSentToWorker;
+			}
+
+			//RECIBIMOS LOS DATOS 
+			auxPtr = outputBuffer; //reset del puntero al inicio del buffer de salida
+			currentRow = 0;
+
+			for(currentRow = 1; currentRow < size; currentRow++){
+				rowsSentToWorker = rowsPerProcess;
+
+				if(currentWorker <= resto){
+					rowsSentToWorker++;
+				}
+
+				totalBytes = rowsSentToWorker * rowSize;
+
+				//RECIBIR
+				MPI_Recv(auxPtr, totalBytes, MPI_UNSIGNED_CHAR, currentWorker, tag, MPI_COMM_WORLD, &status);//status??????????????
+
+				if(SHOW_LOG_MESSAGES){
+					printf("Recibidos %d filas del worker %d (filas %d - %d)\n", rowsPerProcess, currentWorker, currentRow, currentRow + rowsSentToWorker - 1);
+				}
+
+				auxPtr += totalBytes;
+				currentRow += rowsSentToWorker;
+			}
+
+			writeBytes = write(outputFile, outputBuffer, totalBytes);
+
+			if(SHOW_LOG_MESSAGES){
+				printf("Se han escrito %d bytes en el outputFile\n", writeBytes);
+				if(writeBytes != totalBytes){
+					printf("Los bytes escritos NO son iguales a los esperados\n");
+				}
+			}
+
+			//liberar men
+			free(inputBuffer);
+			free(outputBuffer);
 
 			// Close files
 			close (inputFile);
@@ -140,13 +239,11 @@ int main(int argc, char** argv){
 
 		// Worker process
 		else{
+			//RECIBE Bcast
+			MPI_Bcast(imageDimensions, 2, MPI_INT, 0, MPI_COMM_WORLD);
+			rowSize = imageDimensions[0];
+			unsigned int imagenHeight = abs(imageDimensions[1]);
 
-			
-			
-			
-			
-			
-			
 			
 		}
 
