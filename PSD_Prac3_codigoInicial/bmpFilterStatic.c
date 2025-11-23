@@ -121,6 +121,7 @@ int main(int argc, char** argv){
 
 			//IMPORTANTE - la altura puede ser negativa 
 			unsigned int imagenHeight = abs(imgInfoHeaderInput.biHeight);
+			unsigned int totalImageBytes = imagenHeight * rowSize;// esto es fijo 
 
 			//send imagen dimensions to workers 
 			imageDimensions[0] = rowSize;
@@ -167,7 +168,7 @@ int main(int argc, char** argv){
 			auxPtr = inputBuffer; //puntero al inicio de buffer de entrada
 			currentRow = 0;
 
-			for(currentRow = 1; currentRow < size; currentRow++){
+			for(currentWorker = 1; currentWorker < size; currentWorker++){
 				rowsSentToWorker = rowsPerProcess;
 
 				if(currentWorker <= resto){
@@ -182,7 +183,9 @@ int main(int argc, char** argv){
 				}
 
 				//ENVIAR
-				MPI_Send(&rowsSentToWorker, 1, MPI_UNSIGNED, currentWorker, tag, MPI_COMM_WORLD);//tag??????????????????
+				MPI_Send(&rowsSentToWorker, 1, MPI_UNSIGNED, currentWorker, tag, MPI_COMM_WORLD);
+				MPI_Send(&threshold, 1, MPI_UNSIGNED, currentWorker, tag, MPI_COMM_WORLD);
+				MPI_Send(auxPtr, totalBytes, MPI_UNSIGNED_CHAR, currentWorker, tag, MPI_COMM_WORLD);
 
 				auxPtr += totalBytes;
 				currentRow += rowsSentToWorker;
@@ -192,7 +195,7 @@ int main(int argc, char** argv){
 			auxPtr = outputBuffer; //reset del puntero al inicio del buffer de salida
 			currentRow = 0;
 
-			for(currentRow = 1; currentRow < size; currentRow++){
+			for(currentWorker = 1; currentWorker < size; currentWorker++){
 				rowsSentToWorker = rowsPerProcess;
 
 				if(currentWorker <= resto){
@@ -202,21 +205,21 @@ int main(int argc, char** argv){
 				totalBytes = rowsSentToWorker * rowSize;
 
 				//RECIBIR
-				MPI_Recv(auxPtr, totalBytes, MPI_UNSIGNED_CHAR, currentWorker, tag, MPI_COMM_WORLD, &status);//status??????????????
+				MPI_Recv(auxPtr, totalBytes, MPI_UNSIGNED_CHAR, currentWorker, tag, MPI_COMM_WORLD, &status);
 
 				if(SHOW_LOG_MESSAGES){
-					printf("Recibidos %d filas del worker %d (filas %d - %d)\n", rowsPerProcess, currentWorker, currentRow, currentRow + rowsSentToWorker - 1);
+					printf("Recibidos %d filas del worker %d (filas %d - %d)\n", rowsSentToWorker, currentWorker, currentRow, currentRow + rowsSentToWorker - 1);
 				}
 
 				auxPtr += totalBytes;
 				currentRow += rowsSentToWorker;
 			}
 
-			writeBytes = write(outputFile, outputBuffer, totalBytes);
+			writeBytes = write(outputFile, outputBuffer, totalImageBytes);
 
 			if(SHOW_LOG_MESSAGES){
-				printf("Se han escrito %d bytes en el outputFile\n", writeBytes);
-				if(writeBytes != totalBytes){
+				printf("Se han escrito %d bytes en el outputFile (esperados: %d)\n", writeBytes, totalImageBytes);
+				if(writeBytes != totalImageBytes){
 					printf("Los bytes escritos NO son iguales a los esperados\n");
 				}
 			}
@@ -243,8 +246,83 @@ int main(int argc, char** argv){
 			MPI_Bcast(imageDimensions, 2, MPI_INT, 0, MPI_COMM_WORLD);
 			rowSize = imageDimensions[0];
 			unsigned int imagenHeight = abs(imageDimensions[1]);
+			if(SHOW_LOG_MESSAGES){
+				printf("--Worker %d ha recibido las dimensiones: rowSize = %d, height = %d\n", 
+				rank, rowSize, imagenHeight);
+			}
 
-			
+			//RECIBE numero de filas a filtrar
+			MPI_Recv(&rowsPerProcess, 1, MPI_UNSIGNED, 0, tag, MPI_COMM_WORLD, &status);
+			if(SHOW_LOG_MESSAGES){
+				printf("--Worker %d va a procesar %d filas\n", rank, rowsPerProcess);
+			}
+
+			//RECIBE threshold
+			MPI_Recv(&threshold, 1, MPI_UNSIGNED, 0, tag, MPI_COMM_WORLD, &status);
+			if(SHOW_LOG_MESSAGES){
+				printf("--Worker %d ha recibido el threshold: %d\n", rank, threshold);
+			}
+
+			//malloc para los buffers (row * col de la imagen)
+			totalBytes = rowsPerProcess * rowSize;
+			inputBuffer = (unsigned char*) malloc(totalBytes * sizeof(unsigned char));
+			outputBuffer = (unsigned char*) malloc(totalBytes * sizeof(unsigned char));
+			if(inputBuffer == NULL || outputBuffer == NULL){
+				printf("ERROR: No se ha hecho bien el malloc() en el worker %d\n", rank);
+				MPI_Finalize();
+				exit(1);
+			}
+			if(SHOW_LOG_MESSAGES){
+				printf("--Worker %d ha hecho el malloc() para los buffers de %d bytes\n", rank, totalBytes);
+			}
+
+			//RECIBE los datos a filtrar
+			MPI_Recv(inputBuffer, totalBytes, MPI_UNSIGNED_CHAR, 0, tag, MPI_COMM_WORLD, &status);
+			if(SHOW_LOG_MESSAGES){
+				printf("--Worker %d ha recibido %d bytes de pixeles\n", rank, totalBytes);
+			}
+
+			//AQUI VA EL FILTRADO
+			auxPtr = inputBuffer;
+			unsigned char *outputPtr = outputBuffer; //ptr para escribir en el buffer de salida
+			for(currentRow = 0; currentRow < rowsPerProcess; currentRow++){
+				//para cada fila
+				for(currentPixel = 0; currentPixel < rowSize; currentPixel++){
+					//para cada pixel de la fila
+					//construir vector, array con el pixel ANTERIOR, el actual y el SIGUIENTE
+					numPixels = 0;
+					//pixel actual 
+					vector[numPixels] = *auxPtr;
+					numPixels++;
+					//pixel anterior, comprobar si no estoy al principio de la fila
+					if(currentPixel > 0){
+						vector[numPixels] = *(auxPtr - 1);
+						numPixels++;
+					}
+					//pixel siguiente, comprobar si no estoy al final de la fila
+					if(currentPixel < rowSize - 1){
+						vector[numPixels] = *(auxPtr + 1);
+						numPixels++;
+					}
+					//calcular el valor del pixel filtrado
+					*outputPtr = calculatePixelValue(vector, numPixels, threshold, DEBUG_FILTERING);
+
+					auxPtr++;
+					outputPtr++;
+				}
+			}
+			if(SHOW_LOG_MESSAGES){
+				printf("--Worker %d ha terminado de filtrar las %d filas\n", rank, rowsPerProcess);
+			}
+
+			//ENVIA el cacho filtrados al master
+			MPI_Send(outputBuffer, totalBytes, MPI_UNSIGNED_CHAR, 0, tag, MPI_COMM_WORLD);
+			if(SHOW_LOG_MESSAGES){
+				printf("--Worker %d ha enviado %d bytes de pixeles filtrados al master\n", rank, totalBytes);
+			}
+
+			free(inputBuffer);
+			free(outputBuffer);
 		}
 
 		// Finish MPI environment
